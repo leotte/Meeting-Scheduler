@@ -22,6 +22,7 @@
     dayFilter: 0,
     share: null, // {mode: 'created'|'edited'|'link', pollId, title}
     results: null,
+    creatingSheet: false, // a new data sheet is being created
     focusKey: null
   };
   var lastScreen = ''; // view:step of the previous render, to move focus when the screen changes
@@ -749,19 +750,45 @@
   function renderSheetMissing() {
     return h('section', null, [
       h('h1', null, 'The data sheet is missing'),
-      h('p', null, 'The Google Sheet that stores your polls can’t be opened. It may have been deleted. ' +
-        'You can start a new, empty data sheet.'),
+      h('p', null, 'The Google Sheet that stores your polls can’t be opened right now. This can be a temporary ' +
+        'Google problem, so try again first. If the sheet was deleted, you can start a new, empty one.'),
       messageEl(),
-      btn('Create a new data sheet', function () {
-        call('apiCreateDataSheet').then(function () {
-          state.message = { kind: 'ok', text: 'Created a new data sheet.' };
-          loadPolls();
-        }, function (err) {
-          state.message = { kind: 'error', text: failureText(err) };
-          render();
-        });
-      }, 'primary')
+      h('div', { class: 'actions' }, [
+        btn('Try again', goHome, 'primary', { 'data-key': 'retry' }),
+        btn(state.creatingSheet ? 'Creating…' : 'Create a new data sheet', confirmCreateSheet, 'secondary',
+          { 'data-key': 'create-sheet', disabled: state.creatingSheet })
+      ])
     ]);
+  }
+
+  // Replacing the data sheet hides every existing poll, so it needs an explicit yes.
+  function confirmCreateSheet() {
+    if (state.creatingSheet) return;
+    Dom.confirmDialog({
+      title: 'Start a new, empty data sheet?',
+      lines: ['Your existing polls will no longer appear here, and their links will stop working. ' +
+        'Only do this if the data sheet was deleted.'],
+      okLabel: 'Create new sheet',
+      danger: true
+    }).then(function (yes) {
+      if (!yes || state.creatingSheet) return;
+      state.creatingSheet = true;
+      state.message = null;
+      render();
+      call('apiCreateDataSheet').then(function () {
+        state.creatingSheet = false;
+        state.message = { kind: 'ok', text: 'Created a new data sheet.' };
+        state.view = 'loading';
+        render();
+        loadPolls();
+      }, function (err) {
+        state.creatingSheet = false;
+        if (handleSpecial(err)) return;
+        state.message = { kind: 'error', text: failureText(err) };
+        state.focusKey = 'create-sheet';
+        render();
+      });
+    });
   }
 
   // ---- Start -----------------------------------------------------------------

@@ -253,3 +253,31 @@ test('open() skips tabs that did not change since they were read', () => {
     assert.equal(db.read().blocks.length, 2);
   });
 });
+
+test('createNew() keeps the replaced sheet id in DATA_SHEET_ID_PREVIOUS and logs it', () => {
+  const ss = fakeSpreadsheet(5);
+  ss.getId = () => 'sheet-new';
+  const logged = [];
+  const realError = console.error;
+  console.error = (msg) => { logged.push(msg); };
+  try {
+    withAppsScriptGlobals(ss, (props) => {
+      props.DATA_SHEET_ID = 'sheet-old';
+      SheetStore.createNew();
+      assert.equal(props.DATA_SHEET_ID, 'sheet-new');
+      assert.equal(props.DATA_SHEET_ID_PREVIOUS, 'sheet-old');
+      assert.deepEqual(logged, ['Replacing data sheet sheet-old']);
+    });
+    logged.length = 0;
+    const second = fakeSpreadsheet(5);
+    second.getId = () => 'sheet-second';
+    withAppsScriptGlobals(second, (props) => {
+      props.DATA_SHEET_ID_PREVIOUS = 'sheet-older';
+      SheetStore.createNew(); // no current id: nothing to remember, nothing to overwrite
+      assert.equal(props.DATA_SHEET_ID_PREVIOUS, 'sheet-older');
+      assert.deepEqual(logged, []);
+    });
+  } finally {
+    console.error = realError;
+  }
+});

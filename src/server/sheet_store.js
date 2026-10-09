@@ -6,6 +6,7 @@
 var SheetStore = (function () {
   var SHEET_NAME = 'Meeting Scheduler Data';
   var PROP_ID = 'DATA_SHEET_ID';
+  var PROP_PREVIOUS = 'DATA_SHEET_ID_PREVIOUS';
   var TABS = [
     { name: 'Polls', key: 'polls', cols: ['pollId', 'title', 'weekStart', 'lengthMin', 'version', 'createdAt', 'updatedAt'] },
     { name: 'Blocks', key: 'blocks', cols: ['pollId', 'blockId', 'day', 'startMin'] },
@@ -133,8 +134,16 @@ var SheetStore = (function () {
     };
   }
 
+  // Starts a fresh data sheet. The old sheet's id is kept in DATA_SHEET_ID_PREVIOUS (and logged), so a
+  // sheet that was replaced by mistake can be put back by copying that id into DATA_SHEET_ID.
   function createNew() {
-    PropertiesService.getScriptProperties().deleteProperty(PROP_ID);
+    var props = PropertiesService.getScriptProperties();
+    var oldId = props.getProperty(PROP_ID);
+    if (oldId) {
+      props.setProperty(PROP_PREVIOUS, oldId);
+      console.error('Replacing data sheet ' + oldId);
+    }
+    props.deleteProperty(PROP_ID);
     return open();
   }
 
