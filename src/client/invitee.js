@@ -23,6 +23,7 @@
   };
   var lastView = ''; // view of the previous render, to move focus when the screen changes
   var lastSpoken = ''; // last feedback text sent to the live region
+  var hasLoaded = false; // the poll has been loaded successfully at least once
 
   function findInvitee(id) {
     return state.poll.invitees.filter(function (p) { return p.inviteeId === id; })[0] || null;
@@ -50,12 +51,24 @@
     return first ? 't-' + first.blockId : null;
   }
 
+  function firstDayWithTime(blocks) {
+    var day = null;
+    blocks.forEach(function (b) { if (day === null || b.day < day) day = b.day; });
+    return day;
+  }
+
   // ---- Loading ---------------------------------------------------------------
 
   // message: shown once the poll is back. focusKey: control to focus once it is rendered.
   function load(message, focusKey) {
     Api.call('apiGetPublicPoll', pollId).then(function (poll) {
       state.poll = poll;
+      if (!hasLoaded) {
+        // On a phone, start on the first weekday that has a time; later reloads keep the visitor's choice.
+        hasLoaded = true;
+        var first = firstDayWithTime(poll.blocks);
+        if (first !== null) state.dayFilter = first;
+      }
       if (!state.me) state.me = Dom.storageGet(storageKey);
       if (state.me && !findInvitee(state.me)) {
         state.me = null;
@@ -297,5 +310,6 @@
   Grid.onNarrowChange(function () {
     if (state.view === 'poll') render();
   });
+  render(); // show "Loading…" while the first load runs
   load();
 })();
