@@ -24,6 +24,8 @@
     results: null,
     focusKey: null
   };
+  var lastScreen = ''; // view:step of the previous render, to move focus when the screen changes
+  var lastSpoken = ''; // last feedback text sent to the live region
 
   // ---- Helpers -------------------------------------------------------------
 
@@ -82,17 +84,34 @@
       results: renderResults, sheet_missing: renderSheetMissing, denied: renderDenied
     };
     Dom.clear(app).appendChild(views[state.view]());
-    Dom.focusByKey(app, state.focusKey);
+    var screen = state.view + ':' + state.step;
+    if (state.focusKey) {
+      Dom.focusByKey(app, state.focusKey);
+    } else if (screen !== lastScreen) {
+      var heading = app.querySelector('h1');
+      if (heading) {
+        heading.setAttribute('tabindex', '-1');
+        heading.focus();
+      }
+    }
+    lastScreen = screen;
     state.focusKey = null;
+    // Step messages only belong to the wizard; a stale one must not hide the current page message.
+    var spoken = (state.view === 'wizard' && state.stepMessage) || (state.message ? state.message.text : '');
+    if (spoken && spoken !== lastSpoken) Dom.announce(spoken);
+    lastSpoken = spoken;
   }
 
   function messageEl() {
     return Dom.messageBox(state.message);
   }
 
-  function stepMessageEl() {
-    return h('div', { class: 'msg-slot', role: 'status', 'aria-live': 'polite' },
-      state.stepMessage ? h('p', { class: 'msg msg-error' }, state.stepMessage) : null);
+  // Sticky footer for every wizard step: the step message sits right above the buttons, so it is always in view.
+  function wizardFooter(buttons) {
+    return h('div', { class: 'toolbar-sticky' }, [
+      state.stepMessage ? h('p', { class: 'msg msg-error' }, state.stepMessage) : null,
+      h('div', { class: 'save-row' }, buttons)
+    ]);
   }
 
   function renderLoading() {
@@ -138,10 +157,10 @@
             ' min · ' + p.respondedCount + ' of ' + p.invitedCount + ' responded')
         ]),
         h('div', { class: 'actions' }, [
-          btn('Results', function () { openResults(p.pollId); }, 'primary'),
-          btn('Edit', function () { startEdit(p.pollId); }),
-          btn('Copy link', function () { copyLinkFromHome(p); }),
-          btn('Delete', function () { confirmDelete(p); })
+          btn('Results', function () { openResults(p.pollId); }, 'primary', { 'aria-label': 'Results for ' + p.title }),
+          btn('Edit', function () { startEdit(p.pollId); }, 'secondary', { 'aria-label': 'Edit ' + p.title }),
+          btn('Copy link', function () { copyLinkFromHome(p); }, 'secondary', { 'aria-label': 'Copy link for ' + p.title }),
+          btn('Delete', function () { confirmDelete(p); }, 'secondary', { 'aria-label': 'Delete ' + p.title })
         ])
       ]);
     });
@@ -270,9 +289,9 @@
       var cls = 'step' + (n === state.step ? ' current' : n <= state.maxStep ? ' done' : '');
       return h('li', { class: cls }, h('button', {
         type: 'button',
-        disabled: n === state.step || n > state.maxStep,
+        disabled: n > state.maxStep,
         'aria-current': n === state.step ? 'step' : null,
-        onclick: function () { goStep(n); }
+        onclick: function () { if (n !== state.step) goStep(n); }
       }, n + '. ' + label));
     }));
     return h('section', null, [
@@ -312,6 +331,12 @@
         h('input', {
           type: 'date', id: 'f-week', value: d.weekStart,
           onchange: function (e) {
+            if (!e.target.value) {
+              d.weekStart = '';
+              changed();
+              showWeek();
+              return;
+            }
             var monday = L.weekStartFor(e.target.value);
             if (!monday) return;
             d.weekStart = monday;
@@ -334,8 +359,7 @@
           ]);
         }))
       ]),
-      stepMessageEl(),
-      h('div', { class: 'toolbar' }, [
+      wizardFooter([
         btn('← Back to my polls', cancelWizard),
         btn('Next: Times →', function () { goStep(2); }, 'primary')
       ])
@@ -379,13 +403,12 @@
       h('p', null, 'Click a start time to add a ' + d.lengthMin + '-minute block. Click a block to remove it.'),
       h('p', { class: 'note' }, weekLine(d.weekStart)),
       dayTabsIfNarrow(d.weekStart),
-      stepMessageEl(),
       Grid.render({
         mode: 'edit', weekStart: d.weekStart, lengthMin: d.lengthMin, blocks: d.blocks,
         dayFilter: currentDayFilter(), onCellClick: addBlock, onBlockClick: removeBlock
       }),
       h('p', { class: 'counter' }, count === 1 ? '1 time proposed' : count + ' times proposed'),
-      h('div', { class: 'toolbar' }, [
+      wizardFooter([
         btn('← Back', function () { goStep(1); }),
         btn('Tentative schedule complete →', function () { goStep(3); }, 'primary', { disabled: count === 0 })
       ])
@@ -441,14 +464,13 @@
         h('label', { for: 'f-name' }, 'Or add one name'),
         h('div', { class: 'inline-row' }, [single, btn('Add', function () { addNames(single.value, 'single'); })])
       ]),
-      stepMessageEl(),
       h('h2', null, 'Invitees (' + d.invitees.length + ')'),
       list.length ? h('ul', { class: 'name-editor' }, list) : h('p', { class: 'note' }, 'No invitees yet.'),
       h('h2', null, 'Preview'),
       h('p', { class: 'note' }, weekLine(d.weekStart)),
       dayTabsIfNarrow(d.weekStart),
       previewGrid(),
-      h('div', { class: 'toolbar' }, [
+      wizardFooter([
         btn('← Back', function () { goStep(2); }),
         btn('Next: Review →', function () { goStep(4); }, 'primary', { disabled: d.invitees.length === 0 })
       ])
@@ -462,7 +484,7 @@
         state.renaming = i;
         state.focusKey = 'rename-' + i;
         render();
-      }, 'link', { 'aria-label': 'Rename ' + p.name }),
+      }, 'link', { 'aria-label': 'Rename ' + p.name, 'data-key': 'rename-btn-' + i }),
       btn('Remove', function () { removeInvitee(i); }, 'link', { 'aria-label': 'Remove ' + p.name })
     ]);
   }
@@ -478,6 +500,7 @@
         }
         if (e.key === 'Escape') {
           state.renaming = null;
+          state.focusKey = 'rename-btn-' + i;
           render();
         }
       }
@@ -485,14 +508,19 @@
     return h('li', null, [
       input,
       btn('Save', function () { commitRename(i, input.value); }, 'primary'),
-      btn('Cancel', function () { state.renaming = null; render(); })
+      btn('Cancel', function () { state.renaming = null; state.focusKey = 'rename-btn-' + i; render(); })
     ]);
   }
 
   function addNames(text, focusKey) {
     var d = state.draft;
     var names = L.parseNameList(text);
-    if (!names.length) return;
+    if (!names.length) {
+      state.stepMessage = 'Type or paste at least one name.';
+      state.focusKey = focusKey;
+      render();
+      return;
+    }
     var taken = Object.create(null);
     d.invitees.forEach(function (p) { taken[L.nameKey(p.name)] = true; });
     var added = [], skipped = [], tooLong = [];
@@ -525,7 +553,7 @@
       state.stepMessage = '';
       changed();
     }
-    state.focusKey = state.renaming === null ? null : 'rename-' + i;
+    state.focusKey = state.renaming === null ? 'rename-btn-' + i : 'rename-' + i;
     render();
   }
 
@@ -533,6 +561,7 @@
     state.draft.invitees.splice(i, 1);
     state.renaming = null;
     state.stepMessage = '';
+    state.focusKey = 'single';
     changed();
     render();
   }
@@ -566,12 +595,11 @@
         ];
       })),
       errors.length ? h('div', { class: 'msg msg-error', role: 'alert' }, errors.join(' ')) : null,
-      stepMessageEl(),
       h('h2', null, 'What invitees will see'),
       h('p', { class: 'note' }, weekLine(d.weekStart)),
       dayTabsIfNarrow(d.weekStart),
       previewGrid(),
-      h('div', { class: 'toolbar' }, [
+      wizardFooter([
         btn('← Back', function () { goStep(3); }),
         btn(label, confirmSave, 'primary', { disabled: errors.length > 0 || state.saving })
       ])
@@ -660,8 +688,10 @@
     state.message = null;
     render();
     call('apiGetPoll', pollId).then(function (bundle) {
+      // Keep the chosen day when the same poll is reloaded (Refresh); start at Monday for another poll.
+      var samePoll = state.results && state.results.poll && state.results.poll.pollId === pollId;
       state.results = bundle;
-      state.dayFilter = 0;
+      if (!samePoll) state.dayFilter = 0;
       state.view = 'results';
       render();
     }, function (err) {

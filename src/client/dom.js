@@ -33,7 +33,7 @@ var Dom = (function () {
   // m: null or {kind: 'error'|'ok'|'info', text, retry?: function}
   function messageBox(m) {
     if (!m) return null;
-    return h('div', { class: 'msg msg-' + m.kind, role: m.kind === 'error' ? 'alert' : 'status' }, [
+    return h('div', { class: 'msg msg-' + m.kind }, [
       h('span', null, m.text),
       m.retry ? btn('Try again', m.retry, 'link') : null
     ]);
@@ -49,6 +49,14 @@ var Dom = (function () {
     var safe = (window.CSS && CSS.escape) ? CSS.escape(String(key)) : key;
     var el = container.querySelector('[data-key="' + safe + '"]');
     if (el) el.focus();
+  }
+
+  // Announces text through the page's persistent #live region, which sits outside re-rendered content.
+  function announce(text) {
+    var live = document.getElementById('live');
+    if (!live) return;
+    live.textContent = '';
+    setTimeout(function () { live.textContent = text || ''; }, 50);
   }
 
   // Close function of the dialog that is currently open, or null.
@@ -129,6 +137,7 @@ var Dom = (function () {
     messageBox: messageBox,
     clear: clear,
     focusByKey: focusByKey,
+    announce: announce,
     confirmDialog: confirmDialog,
     copyText: copyText,
     storageGet: storageGet,
