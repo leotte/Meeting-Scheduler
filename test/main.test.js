@@ -20,6 +20,7 @@ function loadMain(opts) {
   const store = createMemoryStore();
   const lockLog = [];
   const pages = [];
+  const errors = [];
   const calls = { createNew: 0 };
   let uuid = 0;
   const sandbox = {
@@ -39,7 +40,11 @@ function loadMain(opts) {
       getScriptLock: () => ({ waitLock: () => lockLog.push('wait'), releaseLock: () => lockLog.push('release') })
     },
     SheetStore: {
-      open: () => { if (opts.openError) throw new Error(opts.openError); return store; },
+      open: () => {
+        if (opts.sheetMissing) throw new Service.ServiceError('sheet_missing', 'The data sheet is missing.');
+        if (opts.openError) throw new Error(opts.openError);
+        return store;
+      },
       createNew: () => { calls.createNew += 1; return store; }
     },
     Utilities: {
@@ -67,11 +72,11 @@ function loadMain(opts) {
     },
     ScriptApp: { getService: () => ({ getUrl: () => DEPLOY_URL }) },
     Logger: { log: () => {} },
-    console: { error: () => {} }
+    console: { error: (m) => errors.push(String(m)) }
   };
   vm.createContext(sandbox);
   vm.runInContext(MAIN, sandbox);
-  return { m: sandbox, props, store, lockLog, pages, calls };
+  return { m: sandbox, props, store, lockLog, pages, calls, errors };
 }
 
 test('owner check passes for the owner, ignoring case', () => {
@@ -91,6 +96,8 @@ test('owner check accepts the admin key fallback', () => {
   assert.equal(m.isOwner_('wrong'), false);
   assert.equal(m.isOwner_(''), false);
   assert.equal(m.isOwner_(undefined), false);
+  assert.equal(plain(m.apiListPolls('secret123')).ok, true);
+  assert.equal(plain(m.apiListPolls('wrong')).code, 'not_owner');
 });
 
 test('doGet serves the invitee page for ?poll=', () => {
@@ -142,6 +149,7 @@ test('organizer API refuses non-owners', () => {
   assert.deepEqual(plain(m.apiListPolls('')), expected);
   assert.deepEqual(plain(m.apiSavePoll('', sampleDraft())), expected);
   assert.deepEqual(plain(m.apiDeletePoll('', 'abcd1234')), expected);
+  assert.deepEqual(plain(m.apiGetPoll('', 'abcd1234')), expected);
   assert.deepEqual(lockLog, []);
 });
 
@@ -157,6 +165,8 @@ test('a full round trip locks around writes only', () => {
   assert.equal(plain(m.apiListPolls('')).data[0].respondedCount, 1);
   assert.equal(plain(m.apiGetPoll('', saved.data.pollId)).data.responses.length, 1);
   assert.deepEqual(lockLog, ['wait', 'release', 'wait', 'release']);
+  assert.equal(plain(m.apiSaveResponse(saved.data.pollId, 'zzzzzzzz', [], 99)).code, 'stale');
+  assert.deepEqual(lockLog.slice(-2), ['wait', 'release']);
 });
 
 test('invitee API works for anonymous visitors and reports errors as data', () => {
@@ -170,9 +180,17 @@ test('invitee API works for anonymous visitors and reports errors as data', () =
   const broken = loadMain({ active: '', openError: 'Sheet 1AbC is unreadable' });
   assert.deepEqual(plain(broken.m.apiGetPublicPoll('abcd1234')),
     { ok: false, code: 'server_error', message: 'Something went wrong.' });
+  assert.deepEqual(broken.errors, ['Sheet 1AbC is unreadable']);
   const brokenOwner = loadMain({ active: OWNER, openError: 'Sheet 1AbC is unreadable' });
   assert.deepEqual(plain(brokenOwner.m.apiListPolls('')),
     { ok: false, code: 'server_error', message: 'Sheet 1AbC is unreadable' });
+
+  const missingVisitor = loadMain({ active: '', sheetMissing: true });
+  assert.deepEqual(plain(missingVisitor.m.apiGetPublicPoll('abcd1234')),
+    { ok: false, code: 'sheet_missing', message: 'This poll is no longer available.' });
+  const missingOwner = loadMain({ active: OWNER, sheetMissing: true });
+  assert.deepEqual(plain(missingOwner.m.apiListPolls('')),
+    { ok: false, code: 'sheet_missing', message: 'The data sheet is missing.' });
 });
 
 test('apiCreateDataSheet is owner-only and calls SheetStore.createNew', () => {
@@ -191,4 +209,5 @@ test('setupAdminKey creates the key once', () => {
   assert.match(first, /^[0-9a-f]{32}$/);
   m.setupAdminKey();
   assert.equal(props.ADMIN_KEY, first);
+  assert.throws(() => loadMain({ active: '' }).m.setupAdminKey());
 });

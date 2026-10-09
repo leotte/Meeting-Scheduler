@@ -3,13 +3,15 @@
  * Functions ending in "_" are private: google.script.run cannot call them.
  */
 
+var ORGANIZER_ONLY = 'This page is for the organizer only.';
+
 function doGet(e) {
   var params = (e && e.parameter) || {};
   if (params.poll) {
     return renderPage_('invitee', { pollId: String(params.poll) }, 'Meeting availability');
   }
   if (!isOwner_(params.admin)) {
-    return renderPage_('message', { title: 'Organizer only', message: 'This page is for the organizer only.' }, 'Meeting Scheduler');
+    return renderPage_('message', { title: 'Organizer only', message: ORGANIZER_ONLY }, 'Meeting Scheduler');
   }
   return renderPage_('organizer', { baseUrl: getBaseUrl_(), adminKey: params.admin || '' }, 'Meeting Scheduler');
 }
@@ -59,7 +61,7 @@ function service_() {
 function run_(options, fn) {
   var result = Service.envelope(function () {
     if (options.owner && !isOwner_(options.key)) {
-      throw new Service.ServiceError('not_owner', 'This page is for the organizer only.');
+      throw new Service.ServiceError('not_owner', ORGANIZER_ONLY);
     }
     var lock = null;
     if (options.write) {
@@ -75,6 +77,9 @@ function run_(options, fn) {
   if (!result.ok && result.code === 'server_error') {
     console.error(result.message); // visible in the Apps Script Executions log
     if (!options.owner) result.message = 'Something went wrong.'; // never show internal errors to invitees
+  }
+  if (!result.ok && result.code === 'sheet_missing' && !options.owner) {
+    result.message = 'This poll is no longer available.'; // invitees never see the organizer's wording
   }
   return result;
 }
@@ -119,6 +124,7 @@ function apiSaveResponse(pollId, inviteeId, blockIds, version) {
 // ---- Setup helper: run by hand from the Apps Script editor -----------------
 
 function setupAdminKey() {
+  if (!isOwner_('')) throw new Error(ORGANIZER_ONLY);
   var props = PropertiesService.getScriptProperties();
   var key = props.getProperty('ADMIN_KEY');
   if (!key) {

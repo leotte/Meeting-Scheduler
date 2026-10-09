@@ -13,19 +13,19 @@ var SheetStore = (function () {
     { name: 'Responses', key: 'responses', cols: ['pollId', 'inviteeId', 'blockId'] }
   ];
   var NUMERIC = { lengthMin: true, version: true, day: true, startMin: true, order: true };
-  var RISKY = /^[=+\-@]/; // would be read as a formula
+  var NEEDS_ESCAPE = /^['=+\-@]/; // formula-like text, plus any leading apostrophe, so decoding is lossless
 
   function encodeCell(col, value) {
     if (NUMERIC[col]) return String(Number(value));
     var s = value == null ? '' : String(value);
-    return RISKY.test(s) ? "'" + s : s;
+    return NEEDS_ESCAPE.test(s) ? "'" + s : s;
   }
 
   function decodeCell(col, value) {
     if (Object.prototype.toString.call(value) === '[object Date]') value = formatDateCell(col, value);
     if (NUMERIC[col]) return Number(value);
     var s = value == null ? '' : String(value);
-    return s.charAt(0) === "'" && RISKY.test(s.slice(1)) ? s.slice(1) : s;
+    return s.charAt(0) === "'" && NEEDS_ESCAPE.test(s.slice(1)) ? s.slice(1) : s;
   }
 
   // Guard: cells are written as plain text, but if Sheets ever hands back a Date, restore the string.
@@ -72,11 +72,17 @@ var SheetStore = (function () {
       var sheet = ss.getSheetByName(tab.name);
       var rows = (tables[tab.key] || []).map(function (o) { return objectToRow(tab.cols, o); });
       var last = sheet.getLastRow();
-      if (last > 1) sheet.getRange(2, 1, last - 1, tab.cols.length).clearContent();
+      // Write the new rows first (growing the grid if needed), then clear leftover old rows,
+      // so a failure part-way never leaves a tab empty.
       if (rows.length) {
+        var missing = rows.length + 1 - sheet.getMaxRows();
+        if (missing > 0) sheet.insertRowsAfter(sheet.getMaxRows(), missing);
         var range = sheet.getRange(2, 1, rows.length, tab.cols.length);
         range.setNumberFormat('@');
         range.setValues(rows);
+      }
+      if (last > rows.length + 1) {
+        sheet.getRange(rows.length + 2, 1, last - rows.length - 1, tab.cols.length).clearContent();
       }
     });
   }
@@ -110,7 +116,8 @@ var SheetStore = (function () {
   return {
     open: open,
     createNew: createNew,
-    _codec: { TABS: TABS, encodeCell: encodeCell, decodeCell: decodeCell, rowToObject: rowToObject, objectToRow: objectToRow }
+    _codec: { TABS: TABS, encodeCell: encodeCell, decodeCell: decodeCell, rowToObject: rowToObject, objectToRow: objectToRow },
+    _io: { ensureTabs: ensureTabs, readAll: readAll, writeAll: writeAll }
   };
 })();
 
