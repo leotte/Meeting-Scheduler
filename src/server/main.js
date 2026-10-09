@@ -41,8 +41,14 @@ function isOwner_(key) {
   return !!(stored && key && String(key) === stored);
 }
 
+// The configured BASE_URL, cleaned up so a pasted address with a query, fragment or trailing slash still
+// yields working "<base>?poll=<id>" links; otherwise this deployment's own URL.
 function getBaseUrl_() {
-  return PropertiesService.getScriptProperties().getProperty('BASE_URL') || ScriptApp.getService().getUrl();
+  var configured = String(PropertiesService.getScriptProperties().getProperty('BASE_URL') || '')
+    .trim()
+    .replace(/[?#][\s\S]*$/, '')
+    .replace(/\/+$/, '');
+  return configured || ScriptApp.getService().getUrl();
 }
 
 function newId_() {
@@ -79,6 +85,7 @@ function run_(options, fn) {
     if (!options.owner) result.message = 'Something went wrong.'; // never show internal errors to invitees
   }
   if (!result.ok && result.code === 'sheet_missing' && !options.owner) {
+    console.error(result.message); // the masked message still goes to the Executions log
     result.message = 'This poll is no longer available.'; // invitees never see the organizer's wording
   }
   return result;

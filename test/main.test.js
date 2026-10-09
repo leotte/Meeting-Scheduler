@@ -130,6 +130,19 @@ test('doGet prefers the BASE_URL property and passes the admin key through', () 
   m.doGet({ parameter: { admin: 'k1' } });
   assert.equal(pages[0].name, 'organizer');
   assert.deepEqual(plain(pages[0].boot), { baseUrl: 'https://example.test/exec', adminKey: 'k1' });
+
+  // A pasted address is cleaned: no query, fragment, whitespace or trailing slash.
+  [
+    ['https://example.test/exec/?x=1', 'https://example.test/exec'],
+    ['https://example.test/exec/', 'https://example.test/exec'],
+    ['  https://example.test/exec#top\n', 'https://example.test/exec'],
+    ['https://example.test/exec//?a=1#b', 'https://example.test/exec'],
+    ['?x=1', DEPLOY_URL]
+  ].forEach(([raw, expected]) => {
+    const loaded = loadMain({ active: '', props: { ADMIN_KEY: 'k1', BASE_URL: raw } });
+    loaded.m.doGet({ parameter: { admin: 'k1' } });
+    assert.equal(loaded.pages[0].boot.baseUrl, expected, JSON.stringify(raw));
+  });
 });
 
 test('doGet shows the organizer-only message to everyone else', () => {
@@ -188,9 +201,11 @@ test('invitee API works for anonymous visitors and reports errors as data', () =
   const missingVisitor = loadMain({ active: '', sheetMissing: true });
   assert.deepEqual(plain(missingVisitor.m.apiGetPublicPoll('abcd1234')),
     { ok: false, code: 'sheet_missing', message: 'This poll is no longer available.' });
+  assert.deepEqual(missingVisitor.errors, ['The data sheet is missing.'], 'the masked message is still logged');
   const missingOwner = loadMain({ active: OWNER, sheetMissing: true });
   assert.deepEqual(plain(missingOwner.m.apiListPolls('')),
     { ok: false, code: 'sheet_missing', message: 'The data sheet is missing.' });
+  assert.deepEqual(missingOwner.errors, [], 'nothing is masked for the owner, so nothing extra is logged');
 });
 
 test('apiCreateDataSheet is owner-only and calls SheetStore.createNew', () => {
