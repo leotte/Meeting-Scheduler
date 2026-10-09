@@ -2764,7 +2764,7 @@ var Api = (function () {
 - [ ] **Step 10: Run the tests to verify they pass**
 
 Run: `npm test`
-Expected: PASS, `# fail 0` (83 tests)
+Expected: PASS, `# fail 0` (84 tests)
 
 - [ ] **Step 11: Check the message page in the browser**
 
@@ -3731,7 +3731,7 @@ var Grid = (function () {
 - [ ] **Step 6: Run the tests to verify they pass**
 
 Run: `npm test`
-Expected: PASS, `# fail 0` (84 tests)
+Expected: PASS, `# fail 0` (85 tests)
 
 - [ ] **Step 7: Click through the organizer page in the preview**
 
@@ -4053,7 +4053,7 @@ Expected: FAIL with `ENOENT: no such file or directory, open '.../dist/invitee.h
 - [ ] **Step 5: Run the tests to verify they pass**
 
 Run: `npm test`
-Expected: PASS, `# fail 0` (85 tests)
+Expected: PASS, `# fail 0` (86 tests)
 
 - [ ] **Step 6: Click through the invitee page in the preview**
 
@@ -4219,7 +4219,7 @@ Edit (pencil) → Version: New version → Deploy**. The URL stays the same.
 - [ ] **Step 2: Run the full test suite**
 
 Run: `npm test`
-Expected: PASS, `# fail 0` (85 tests)
+Expected: PASS, `# fail 0` (86 tests)
 
 - [ ] **Step 3: Full click-through against the spec**
 
@@ -4278,7 +4278,7 @@ Then edit `package.json` so `scripts` reads:
 ```
 
 Run: `npm test`
-Expected: PASS, `# fail 0` (85 tests)
+Expected: PASS, `# fail 0` (86 tests)
 
 - [ ] **Step 2: Commit the tooling**
 
