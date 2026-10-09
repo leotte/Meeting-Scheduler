@@ -84,6 +84,7 @@ test('name helpers trim, collapse spaces and ignore case', () => {
   assert.deepEqual(Logic.parseNameList(''), []);
   assert.deepEqual(Logic.findDuplicateNames(['Ana', 'Raj', 'ana', 'Lee']), ['ana']);
   assert.deepEqual(Logic.findDuplicateNames(['Ana', 'Raj']), []);
+  assert.deepEqual(Logic.findDuplicateNames(['Constructor', '__proto__', 'toString']), []);
 });
 
 test('validateDraft accepts a complete draft', () => {
@@ -109,6 +110,8 @@ test('validateDraft checks the week, title length and blocks', () => {
   assert.deepEqual(Logic.validateDraft(draft({ blocks: [MON9, { blockId: null, day: 0, startMin: 570 }] })),
     ['Times must not overlap and must end by 6:00 PM.']);
   assert.deepEqual(Logic.validateDraft(draft({ lengthMin: 90, blocks: [{ blockId: null, day: 0, startMin: 1020 }] })),
+    ['Times must not overlap and must end by 6:00 PM.']);
+  assert.deepEqual(Logic.validateDraft(draft({ blocks: [MON9, null] })),
     ['Times must not overlap and must end by 6:00 PM.']);
 });
 

@@ -183,7 +183,7 @@ var Logic = (function () {
   }
 
   function findDuplicateNames(names) {
-    var seen = {}, dups = [];
+    var seen = Object.create(null), dups = [];
     names.forEach(function (n) {
       var k = nameKey(n);
       if (seen[k]) dups.push(n);
@@ -208,11 +208,12 @@ var Logic = (function () {
     if (lengthOk) {
       var placed = [];
       for (var i = 0; i < blocks.length; i++) {
-        if (!checkPlacement(placed, blocks[i].day, blocks[i].startMin, draft.lengthMin).ok) {
+        var b = blocks[i];
+        if (!b || !checkPlacement(placed, b.day, b.startMin, draft.lengthMin).ok) {
           errors.push('Times must not overlap and must end by 6:00 PM.');
           break;
         }
-        placed.push(blocks[i]);
+        placed.push(b);
       }
     }
     var invitees = Array.isArray(draft.invitees) ? draft.invitees : [];
