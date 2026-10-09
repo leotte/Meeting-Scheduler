@@ -56,7 +56,7 @@ test('rows round-trip for every tab', () => {
 // A small fake spreadsheet that follows the Apps Script rules the store depends on:
 // new sheets have a fixed grid, and getRange throws when it reaches past the last row.
 function fakeSpreadsheet(startRows) {
-  const sheets = [{ name: 'Sheet1', maxRows: startRows, cells: [] }];
+  const sheets = [{ name: 'Sheet1', maxRows: startRows, cells: [], writes: 0 }];
   function wrap(sheet) {
     if (sheet.api) return sheet.api;
     const api = {
@@ -74,6 +74,7 @@ function fakeSpreadsheet(startRows) {
         }
         const range = {
           setValues: (values) => {
+            sheet.writes++;
             values.forEach((vals, i) => {
               const r = row - 1 + i;
               sheet.cells[r] = sheet.cells[r] || [];
@@ -95,6 +96,7 @@ function fakeSpreadsheet(startRows) {
             return out;
           },
           clearContent: () => {
+            sheet.writes++;
             for (let i = 0; i < numRows; i++) {
               const r = row - 1 + i;
               for (let j = 0; j < numCols; j++) if (sheet.cells[r]) sheet.cells[r][col - 1 + j] = '';
@@ -112,10 +114,12 @@ function fakeSpreadsheet(startRows) {
   }
   return {
     getSheetByName: (name) => { const s = sheets.find((x) => x.name === name); return s ? wrap(s) : null; },
-    insertSheet: (name) => { const s = { name, maxRows: startRows, cells: [] }; sheets.push(s); return wrap(s); },
+    insertSheet: (name) => { const s = { name, maxRows: startRows, cells: [], writes: 0 }; sheets.push(s); return wrap(s); },
     getSheets: () => sheets.map(wrap),
     deleteSheet: (api) => { sheets.splice(sheets.findIndex((s) => s.api === api), 1); },
-    names: () => sheets.map((s) => s.name)
+    names: () => sheets.map((s) => s.name),
+    // How many times each tab has been written to (setValues or clearContent) so far.
+    writes: () => Object.fromEntries(sheets.map((s) => [s.name, s.writes]))
   };
 }
 
@@ -156,6 +160,21 @@ test('sheet I/O grows the grid and clears leftover rows', () => {
   assert.deepEqual(after.polls, tables.polls);
   assert.deepEqual(after.blocks, tables.blocks);
   assert.deepEqual(after.invitees, tables.invitees);
+
+  // With a snapshot of what was read, tabs whose rows are identical are not touched at all.
+  const seen = io.snapshot(after);
+  const quiet = ss.writes();
+  io.writeAll(ss, after, seen);
+  assert.deepEqual(ss.writes(), quiet, 'nothing changed, nothing written');
+  io.writeAll(ss, Object.assign({}, after, { responses: after.responses.slice(0, 1) }), seen);
+  const now = ss.writes();
+  assert.ok(now.Responses > quiet.Responses, 'the changed tab is written');
+  ['Polls', 'Blocks', 'Invitees'].forEach((n) => assert.equal(now[n], quiet[n], n + ' left alone'));
+  assert.deepEqual(io.readAll(ss).responses, after.responses.slice(0, 1));
+  // Without a snapshot every tab is written, as before.
+  io.writeAll(ss, after);
+  ['Polls', 'Blocks', 'Invitees', 'Responses'].forEach((n) => assert.ok(ss.writes()[n] > now[n], n + ' rewritten'));
+  assert.deepEqual(io.readAll(ss), after);
 });
 
 // open() is the only place that touches Apps Script globals; run it against stand-ins.
@@ -201,5 +220,36 @@ test('open() flushes the sheet right after every write', () => {
     }));
     assert.deepEqual(events, ['flush']);
     assert.equal(db.read().blocks.length, 1);
+  });
+});
+
+test('open() skips tabs that did not change since they were read', () => {
+  const ss = fakeSpreadsheet(5);
+  ss.getId = () => 'sheet-2';
+  withAppsScriptGlobals(ss, (props, events) => {
+    const db = SheetStore.open();
+    const tables = db.read();
+    tables.polls = [{ pollId: 'abcdEFGH', title: 'Budget', weekStart: '2026-10-19', lengthMin: 60, version: 1,
+      createdAt: '2026-10-09T12:00:00.000Z', updatedAt: '2026-10-09T12:00:00.000Z' }];
+    tables.blocks = [{ pollId: 'abcdEFGH', blockId: 'blk00001', day: 0, startMin: 540 }];
+    db.write(tables); // first write after read: polls and blocks changed
+    let w = ss.writes();
+
+    const again = db.read();
+    db.write(again); // nothing changed
+    assert.deepEqual(ss.writes(), w, 'an unchanged save writes no tab');
+    assert.deepEqual(events, ['flush', 'flush'], 'but the write is still flushed');
+
+    again.blocks = again.blocks.concat([{ pollId: 'abcdEFGH', blockId: 'blk00002', day: 1, startMin: 600 }]);
+    db.write(again);
+    const after = ss.writes();
+    assert.ok(after.Blocks > w.Blocks);
+    ['Polls', 'Invitees', 'Responses'].forEach((n) => assert.equal(after[n], w[n], n + ' left alone'));
+
+    // A second write without a fresh read compares against what the last write left behind.
+    w = ss.writes();
+    db.write(again);
+    assert.deepEqual(ss.writes(), w);
+    assert.equal(db.read().blocks.length, 2);
   });
 });

@@ -67,10 +67,24 @@ var SheetStore = (function () {
     return out;
   }
 
-  function writeAll(ss, tables) {
+  function tableRows(tab, tables) {
+    return (tables[tab.key] || []).map(function (o) { return objectToRow(tab.cols, o); });
+  }
+
+  // One JSON string per table, comparable with the rows writeAll would produce.
+  function snapshot(tables) {
+    var out = {};
+    TABS.forEach(function (tab) { out[tab.key] = JSON.stringify(tableRows(tab, tables)); });
+    return out;
+  }
+
+  // `unchanged` (optional) maps a table key to the snapshot taken when it was last read;
+  // a tab whose new rows match it is left alone. Without it, every tab is written.
+  function writeAll(ss, tables, unchanged) {
     TABS.forEach(function (tab) {
+      var rows = tableRows(tab, tables);
+      if (unchanged && unchanged[tab.key] === JSON.stringify(rows)) return;
       var sheet = ss.getSheetByName(tab.name);
-      var rows = (tables[tab.key] || []).map(function (o) { return objectToRow(tab.cols, o); });
       var last = sheet.getLastRow();
       // Write the new rows first (growing the grid if needed), then clear leftover old rows,
       // so a failure part-way never leaves a tab empty.
@@ -102,11 +116,19 @@ var SheetStore = (function () {
       }
     }
     ensureTabs(ss);
+    var seen = null; // snapshot of each table as last read or written, so unchanged tabs are not rewritten
     return {
-      read: function () { return readAll(ss); },
+      read: function () {
+        var tables = readAll(ss);
+        seen = snapshot(tables);
+        return tables;
+      },
       write: function (tables) {
-        writeAll(ss, tables);
+        var before = seen;
+        seen = null; // if the write fails part-way, the next write must not trust the old snapshot
+        writeAll(ss, tables, before);
         SpreadsheetApp.flush(); // Apps Script batches Sheet writes; commit them before the caller releases the lock
+        seen = snapshot(tables);
       }
     };
   }
@@ -120,7 +142,7 @@ var SheetStore = (function () {
     open: open,
     createNew: createNew,
     _codec: { TABS: TABS, encodeCell: encodeCell, decodeCell: decodeCell, rowToObject: rowToObject, objectToRow: objectToRow },
-    _io: { ensureTabs: ensureTabs, readAll: readAll, writeAll: writeAll }
+    _io: { ensureTabs: ensureTabs, readAll: readAll, writeAll: writeAll, snapshot: snapshot }
   };
 })();
 
