@@ -704,7 +704,8 @@ test('tally counts valid ticks once and finds the best blocks', () => {
     { inviteeId: 'i1', blockId: 'b1' }, { inviteeId: 'i2', blockId: 'b1' },
     { inviteeId: 'i3', blockId: 'b2' }, { inviteeId: 'i1', blockId: 'b2' },
     { inviteeId: 'ghost', blockId: 'b1' }, { inviteeId: 'i1', blockId: 'bX' },
-    { inviteeId: 'i1', blockId: 'b1' }
+    { inviteeId: 'i1', blockId: 'b1' },
+    { inviteeId: 'i1', blockId: 'toString' }, { inviteeId: 'constructor', blockId: 'b3' }
   ];
   assert.deepEqual(Logic.tally(blocks, invitees, responses), {
     ticks: { b1: ['i1', 'i2'], b2: ['i3', 'i1'], b3: [] },
@@ -855,12 +856,12 @@ Expected: FAIL with `TypeError: Logic.tally is not a function`
   // ---- Results ------------------------------------------------------------
 
   function tally(blocks, invitees, responses) {
-    var known = {};
+    var known = Object.create(null);
     invitees.forEach(function (p) { known[p.inviteeId] = true; });
     var ticks = {}, counts = {};
     blocks.forEach(function (b) { ticks[b.blockId] = []; });
     responses.forEach(function (r) {
-      var list = ticks[r.blockId];
+      var list = Object.prototype.hasOwnProperty.call(ticks, r.blockId) ? ticks[r.blockId] : null;
       if (list && known[r.inviteeId] && list.indexOf(r.inviteeId) === -1) list.push(r.inviteeId);
     });
     var max = 0;
@@ -883,7 +884,7 @@ Expected: FAIL with `TypeError: Logic.tally is not a function`
 
   function editImpact(existing, draft) {
     var poll = existing.poll;
-    var keepBlock = {}, keepInvitee = {};
+    var keepBlock = Object.create(null), keepInvitee = Object.create(null);
     (draft.blocks || []).forEach(function (b) { if (b.blockId) keepBlock[b.blockId] = true; });
     (draft.invitees || []).forEach(function (p) { if (p.inviteeId) keepInvitee[p.inviteeId] = true; });
 
@@ -1172,6 +1173,7 @@ test('saveResponse rejects stale versions, unknown invitees, unknown blocks and 
   assert.throws(() => service.saveResponse(pollId, ANA, [], 2), withCode('stale'));
   assert.throws(() => service.saveResponse(pollId, 'id999999', [], 1), withCode('stale'));
   assert.throws(() => service.saveResponse(pollId, ANA, ['id999999'], 1), withCode('stale'));
+  assert.throws(() => service.saveResponse(pollId, ANA, ['toString'], 1), withCode('stale'));
   assert.throws(() => service.saveResponse('id999999', ANA, [], 1), withCode('not_found'));
   assert.throws(() => service.saveResponse(pollId, ANA, MON, 1), withCode('invalid'));
 });
@@ -1251,6 +1253,10 @@ test('editing: unknown or repeated ids in a draft are rejected', () => {
   const d = sharedPollWithAnswers();
   d.draft.blocks.push({ blockId: MON, day: 3, startMin: 600 });
   assert.throws(() => d.service.savePoll(d.draft), withCode('invalid'));
+
+  const e = sharedPollWithAnswers();
+  e.draft.blocks[0].blockId = 'toString';
+  assert.throws(() => e.service.savePoll(e.draft), withCode('invalid'));
 });
 
 test('editing a poll that no longer exists is not_found', () => {
@@ -1335,8 +1341,9 @@ var Service = (function () {
     return rows.filter(function (r) { return r.pollId !== pollId; });
   }
 
+  // Prototype-free so ids such as "toString" never match inherited properties.
   function indexBy(rows, key) {
-    var out = {};
+    var out = Object.create(null);
     rows.forEach(function (r) { out[r[key]] = r; });
     return out;
   }
