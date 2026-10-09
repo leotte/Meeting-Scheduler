@@ -4312,7 +4312,7 @@ git commit -m "chore: link the Apps Script project" -m "Co-Authored-By: Claude O
 
 - [ ] **Step 6: The organizer deploys and runs the checks**
 
-Walk the organizer through README steps 5–9 (deploy, outsider test, owner test, link check, smoke test). Record the outcome of each:
+Walk the organizer through README steps 5–10 (deploy, organizer page, owner test, link check, outsider test, smoke test). Record the outcome of each:
 
 | Check | Expected | If not |
 |---|---|---|
