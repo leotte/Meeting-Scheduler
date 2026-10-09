@@ -2630,7 +2630,7 @@ var Api = (function () {
 
 ```html
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <base target="_top">
   <?!= include('styles') ?>
@@ -2961,7 +2961,7 @@ var Grid = (function () {
 
 ```html
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <base target="_top">
   <?!= include('styles') ?>
@@ -3795,7 +3795,7 @@ Expected: FAIL with `ENOENT: no such file or directory, open '.../dist/invitee.h
 
 ```html
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <base target="_top">
   <?!= include('styles') ?>
