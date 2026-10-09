@@ -153,6 +153,7 @@ button.cell:hover { background: var(--cream-dark); }
 
 @media (max-width: 767px) {
   :root { --row-h: 34px; }
+  html { scroll-padding-bottom: 12rem; }
   .container { padding: 16px 16px 40px; }
   h1 { font-size: 1.3rem; }
   .grid-time { padding: 2px 4px; font-size: 0.72rem; }

@@ -219,7 +219,28 @@ test('open() flushes the sheet right after every write', () => {
       blocks: [{ pollId: 'abcdEFGH', blockId: 'blk00001', day: 0, startMin: 540 }]
     }));
     assert.deepEqual(events, ['flush']);
-    assert.equal(db.read().blocks.length, 1);
+    const after = db.read();
+    assert.equal(after.blocks.length, 1);
+
+    // A write that fails part-way is flushed too, and the error still reaches the caller.
+    const realGet = ss.getSheetByName;
+    ss.getSheetByName = (name) => {
+      const sheet = realGet(name);
+      if (name !== 'Blocks') return sheet;
+      return Object.assign({}, sheet, {
+        getRange: (...args) => {
+          const range = sheet.getRange(...args);
+          range.setValues = () => { throw new Error('quota exceeded'); };
+          return range;
+        }
+      });
+    };
+    events.length = 0;
+    assert.throws(() => db.write(Object.assign({}, after, {
+      blocks: after.blocks.concat([{ pollId: 'abcdEFGH', blockId: 'blk00002', day: 1, startMin: 600 }])
+    })), /quota exceeded/);
+    assert.deepEqual(events, ['flush'], 'the failed write is still flushed');
+    ss.getSheetByName = realGet;
   });
 });
 

@@ -127,8 +127,12 @@ var SheetStore = (function () {
       write: function (tables) {
         var before = seen;
         seen = null; // if the write fails part-way, the next write must not trust the old snapshot
-        writeAll(ss, tables, before);
-        SpreadsheetApp.flush(); // Apps Script batches Sheet writes; commit them before the caller releases the lock
+        try {
+          writeAll(ss, tables, before);
+        } finally {
+          // Apps Script batches Sheet writes; commit them (even a partial write) before the caller releases the lock
+          SpreadsheetApp.flush();
+        }
         seen = snapshot(tables);
       }
     };

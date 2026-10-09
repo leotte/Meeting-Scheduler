@@ -297,7 +297,7 @@
       return h('li', { class: cls }, h('button', {
         type: 'button',
         'data-key': 'step-' + n,
-        disabled: n > state.maxStep,
+        disabled: n > state.maxStep || state.saving || state.checking, // no navigating away mid-save
         'aria-current': n === state.step ? 'step' : null,
         onclick: function () { if (n !== state.step) goStep(n); }
       }, n + '. ' + label));
@@ -594,12 +594,13 @@
       ['Proposed times', String(d.blocks.length), 2],
       ['Invitees', d.invitees.map(function (p) { return p.name; }).join(', '), 3]
     ];
+    var busy = state.saving || state.checking; // locks navigation while the save is in flight
     var label = state.saving ? 'Saving…' : state.checking ? 'Checking…' : d.pollId ? 'Save changes' : 'Confirm & create link';
     return h('div', null, [
       h('dl', { class: 'summary' }, rows.map(function (r) {
         return [
           h('dt', null, r[0]),
-          h('dd', null, [r[1] + ' ', btn('Edit', function () { goStep(r[2]); }, 'link', { 'aria-label': 'Edit ' + r[0].toLowerCase() })])
+          h('dd', null, [r[1] + ' ', btn('Edit', function () { goStep(r[2]); }, 'link', { disabled: busy, 'aria-label': 'Edit ' + r[0].toLowerCase() })])
         ];
       })),
       errors.length ? h('div', { class: 'msg msg-error', role: 'alert' }, errors.join(' ')) : null,
@@ -608,8 +609,8 @@
       dayTabsIfNarrow(d.weekStart),
       previewGrid(),
       wizardFooter([
-        btn('← Back', function () { goStep(3); }, null, { 'data-key': 'back' }),
-        btn(label, confirmSave, 'primary', { disabled: errors.length > 0 || state.saving || state.checking, 'data-key': 'next' })
+        btn('← Back', function () { goStep(3); }, null, { disabled: busy, 'data-key': 'back' }),
+        btn(label, confirmSave, 'primary', { disabled: errors.length > 0 || busy, 'data-key': 'next' })
       ])
     ]);
   }
@@ -639,6 +640,16 @@
   function confirmSave() {
     if (state.checking || state.saving) return;
     var d = state.draft;
+    // The wizard may have moved on (or been replaced) while a request was in flight; then the result is ignored.
+    function gone() { return state.view !== 'wizard' || state.step !== 4 || state.draft !== d; }
+    function failed(err) {
+      if (gone()) {
+        state.saving = false;
+        state.checking = false;
+        return;
+      }
+      saveFailed(err);
+    }
     var impact = Promise.resolve([]);
     if (d.pollId) {
       // Count the answers an edit would delete against the poll as it is now, not as it was when the
@@ -653,6 +664,10 @@
         : true;
     }).then(function (yes) {
       state.checking = false;
+      if (gone()) {
+        state.saving = false;
+        return;
+      }
       if (!yes) {
         state.focusKey = 'next';
         render();
@@ -663,10 +678,11 @@
       render();
       call('apiSavePoll', toServerDraft(d)).then(function (res) {
         state.saving = false;
+        if (gone()) return;
         state.dirty = false;
         openShare({ mode: d.pollId ? 'edited' : 'created', pollId: res.pollId, title: L.normalizeName(d.title) });
-      }, saveFailed);
-    }, saveFailed);
+      }, failed);
+    }, failed);
   }
 
   // ---- Share -----------------------------------------------------------------
