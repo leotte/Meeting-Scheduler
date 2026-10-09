@@ -43,3 +43,14 @@ test('preview pages have every scriptlet resolved', () => {
   assert.ok(fs.existsSync(path.join(ROOT, 'preview-dist', 'index.html')));
   assert.ok(fs.existsSync(path.join(ROOT, 'preview-dist', 'service.js')));
 });
+
+test('organizer page and its scripts are built', () => {
+  assert.match(dist('organizer.html'), /<\?!= include\('js_organizer'\) \?>/);
+  for (const name of ['js_grid', 'js_organizer']) {
+    assert.match(dist(name + '.html'), /^<script>\n[\s\S]*<\/script>\n$/, name);
+  }
+  const html = preview('organizer.html');
+  assert.equal(html.indexOf('<?'), -1);
+  assert.match(html, /PreviewShim\.boot\("organizer"\)/);
+  assert.match(html, /<div id="dialog-root"><\/div>/);
+});
