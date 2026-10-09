@@ -12,12 +12,12 @@
     polls: [],
     message: null, // {kind: 'error'|'ok'|'info', text, retry?}
     draft: null,
-    original: null, // bundle being edited, for edit-impact warnings
     step: 1,
     maxStep: 1,
     stepMessage: '',
     renaming: null,
     saving: false,
+    checking: false, // Save was clicked and the poll is being re-read to count the answers an edit would delete
     dirty: false,
     dayFilter: 0,
     share: null, // {mode: 'created'|'edited'|'link', pollId, title}
@@ -52,6 +52,7 @@
     state.view = err.code === 'sheet_missing' ? 'sheet_missing' : 'denied';
     state.dirty = false;
     state.saving = false;
+    state.checking = false;
     render();
     return true;
   }
@@ -148,7 +149,6 @@
     state.view = 'loading';
     state.message = null;
     state.draft = null;
-    state.original = null;
     state.dirty = false;
     render();
     loadPolls();
@@ -217,7 +217,6 @@
 
   function startNew() {
     state.draft = { pollId: null, title: '', weekStart: '', lengthMin: 60, blocks: [], invitees: [] };
-    state.original = null;
     openWizard(1);
   }
 
@@ -226,7 +225,6 @@
     state.message = null;
     render();
     call('apiGetPoll', pollId).then(function (bundle) {
-      state.original = bundle;
       state.draft = L.draftFromBundle(bundle);
       openWizard(4);
     }, function (err) {
@@ -243,6 +241,7 @@
     state.renaming = null;
     state.message = null;
     state.saving = false;
+    state.checking = false;
     state.dirty = false;
     state.dayFilter = 0;
     state.view = 'wizard';
@@ -593,7 +592,7 @@
       ['Proposed times', String(d.blocks.length), 2],
       ['Invitees', d.invitees.map(function (p) { return p.name; }).join(', '), 3]
     ];
-    var label = state.saving ? 'Saving…' : d.pollId ? 'Save changes' : 'Confirm & create link';
+    var label = state.saving ? 'Saving…' : state.checking ? 'Checking…' : d.pollId ? 'Save changes' : 'Confirm & create link';
     return h('div', null, [
       h('dl', { class: 'summary' }, rows.map(function (r) {
         return [
@@ -608,7 +607,7 @@
       previewGrid(),
       wizardFooter([
         btn('← Back', function () { goStep(3); }, null, { 'data-key': 'back' }),
-        btn(label, confirmSave, 'primary', { disabled: errors.length > 0 || state.saving, 'data-key': 'next' })
+        btn(label, confirmSave, 'primary', { disabled: errors.length > 0 || state.saving || state.checking, 'data-key': 'next' })
       ])
     ]);
   }
@@ -624,14 +623,38 @@
     };
   }
 
+  function saveFailed(err) {
+    state.saving = false;
+    state.checking = false;
+    if (handleSpecial(err)) return;
+    state.stepMessage = err.code === 'network'
+      ? 'Couldn’t save. Check your connection and try again.'
+      : failureText(err);
+    render();
+  }
+
   function confirmSave() {
+    if (state.checking || state.saving) return;
     var d = state.draft;
-    var lines = state.original ? L.describeImpact(L.editImpact(state.original, d)) : [];
-    var proceed = lines.length
-      ? Dom.confirmDialog({ title: 'Some answers will be deleted', lines: lines, okLabel: 'Save anyway', danger: true })
-      : Promise.resolve(true);
-    proceed.then(function (yes) {
-      if (!yes) return;
+    var impact = Promise.resolve([]);
+    if (d.pollId) {
+      // Count the answers an edit would delete against the poll as it is now, not as it was when the
+      // editor was opened: invitees may have answered in the meantime.
+      state.checking = true;
+      render();
+      impact = call('apiGetPoll', d.pollId).then(function (fresh) { return L.describeImpact(L.editImpact(fresh, d)); });
+    }
+    impact.then(function (lines) {
+      return lines.length
+        ? Dom.confirmDialog({ title: 'Some answers will be deleted', lines: lines, okLabel: 'Save anyway', danger: true })
+        : true;
+    }).then(function (yes) {
+      state.checking = false;
+      if (!yes) {
+        state.focusKey = 'next';
+        render();
+        return;
+      }
       state.saving = true;
       state.stepMessage = '';
       render();
@@ -639,15 +662,8 @@
         state.saving = false;
         state.dirty = false;
         openShare({ mode: d.pollId ? 'edited' : 'created', pollId: res.pollId, title: L.normalizeName(d.title) });
-      }, function (err) {
-        state.saving = false;
-        if (handleSpecial(err)) return;
-        state.stepMessage = err.code === 'network'
-          ? 'Couldn’t save. Check your connection and try again.'
-          : failureText(err);
-        render();
-      });
-    });
+      }, saveFailed);
+    }, saveFailed);
   }
 
   // ---- Share -----------------------------------------------------------------
@@ -655,7 +671,6 @@
   function openShare(share) {
     state.share = share;
     state.draft = null;
-    state.original = null;
     state.view = 'share';
     render();
   }
