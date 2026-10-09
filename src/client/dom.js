@@ -44,11 +44,13 @@ var Dom = (function () {
     return el;
   }
 
+  // Focuses the control with this data-key; returns whether such a control is on screen.
   function focusByKey(container, key) {
-    if (!key) return;
+    if (!key) return false;
     var safe = (window.CSS && CSS.escape) ? CSS.escape(String(key)) : key;
     var el = container.querySelector('[data-key="' + safe + '"]');
     if (el) el.focus();
+    return !!el;
   }
 
   // Announces text through the page's persistent #live region, which sits outside re-rendered content.

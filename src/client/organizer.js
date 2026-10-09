@@ -90,11 +90,11 @@
     var previousKey = active && active !== app && app.contains(active) ? active.getAttribute('data-key') : null;
     Dom.clear(app).appendChild(views[state.view]());
     var screen = state.view + ':' + state.step;
-    if (state.focusKey) {
-      Dom.focusByKey(app, state.focusKey);
-    } else if (screen === lastScreen && previousKey) {
+    // A requested control that is not on this screen is treated as if no control had been requested.
+    var focused = !!state.focusKey && Dom.focusByKey(app, state.focusKey);
+    if (!focused && screen === lastScreen && previousKey) {
       Dom.focusByKey(app, previousKey);
-    } else if (screen !== lastScreen) {
+    } else if (!focused && screen !== lastScreen) {
       var heading = app.querySelector('h1');
       if (heading) {
         heading.setAttribute('tabindex', '-1');
@@ -187,6 +187,7 @@
       document.body.removeChild(tmp);
       if (ok) {
         state.message = { kind: 'ok', text: 'Link copied for “' + p.title + '”.' };
+        state.focusKey = 'new-poll';
         render();
       } else {
         openShare({ mode: 'link', pollId: p.pollId, title: p.title });
@@ -204,6 +205,7 @@
       if (!yes) return;
       call('apiDeletePoll', p.pollId).then(function () {
         state.message = { kind: 'ok', text: 'Deleted “' + p.title + '”.' };
+        state.focusKey = 'new-poll';
         loadPolls();
       }, function (err) {
         if (handleSpecial(err)) return;
@@ -630,6 +632,7 @@
     state.stepMessage = err.code === 'network'
       ? 'Couldn’t save. Check your connection and try again.'
       : failureText(err);
+    state.focusKey = 'next';
     render();
   }
 
