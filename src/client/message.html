@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <?!= include('styles') ?>
+</head>
+<body>
+  <header class="topbar"><div class="topbar-inner">Meeting Scheduler</div></header>
+  <main class="container">
+    <h1 id="message-title"></h1>
+    <p id="message-text"></p>
+  </main>
+  <script>window.BOOT = <?!= bootJson ?>;</script>
+  <script>
+    document.getElementById('message-title').textContent = (window.BOOT && window.BOOT.title) || '';
+    document.getElementById('message-text').textContent = (window.BOOT && window.BOOT.message) || '';
+  </script>
+</body>
+</html>
