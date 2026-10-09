@@ -54,3 +54,11 @@ test('organizer page and its scripts are built', () => {
   assert.match(html, /PreviewShim\.boot\("organizer"\)/);
   assert.match(html, /<div id="dialog-root"><\/div>/);
 });
+
+test('invitee page and its script are built', () => {
+  assert.match(dist('invitee.html'), /<\?!= include\('js_invitee'\) \?>/);
+  assert.match(dist('js_invitee.html'), /^<script>\n[\s\S]*<\/script>\n$/);
+  const html = preview('invitee.html');
+  assert.equal(html.indexOf('<?'), -1);
+  assert.match(html, /PreviewShim\.boot\("invitee"\)/);
+});
