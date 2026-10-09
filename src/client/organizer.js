@@ -83,10 +83,15 @@
       loading: renderLoading, home: renderHome, wizard: renderWizard, share: renderShare,
       results: renderResults, sheet_missing: renderSheetMissing, denied: renderDenied
     };
+    // Remember which control had focus, so an in-place re-render of the same screen can give it back.
+    var active = document.activeElement;
+    var previousKey = active && active !== app && app.contains(active) ? active.getAttribute('data-key') : null;
     Dom.clear(app).appendChild(views[state.view]());
     var screen = state.view + ':' + state.step;
     if (state.focusKey) {
       Dom.focusByKey(app, state.focusKey);
+    } else if (screen === lastScreen && previousKey) {
+      Dom.focusByKey(app, previousKey);
     } else if (screen !== lastScreen) {
       var heading = app.querySelector('h1');
       if (heading) {
@@ -165,7 +170,7 @@
       ]);
     });
     return h('section', null, [
-      h('div', { class: 'toolbar toolbar-top' }, [h('h1', null, 'My polls'), btn('New poll', startNew, 'primary')]),
+      h('div', { class: 'toolbar toolbar-top' }, [h('h1', null, 'My polls'), btn('New poll', startNew, 'primary', { 'data-key': 'new-poll' })]),
       messageEl(),
       rows.length
         ? h('ul', { class: 'poll-list' }, rows)
@@ -289,6 +294,7 @@
       var cls = 'step' + (n === state.step ? ' current' : n <= state.maxStep ? ' done' : '');
       return h('li', { class: cls }, h('button', {
         type: 'button',
+        'data-key': 'step-' + n,
         disabled: n > state.maxStep,
         'aria-current': n === state.step ? 'step' : null,
         onclick: function () { if (n !== state.step) goStep(n); }
@@ -360,8 +366,8 @@
         }))
       ]),
       wizardFooter([
-        btn('← Back to my polls', cancelWizard),
-        btn('Next: Times →', function () { goStep(2); }, 'primary')
+        btn('← Back to my polls', cancelWizard, null, { 'data-key': 'back' }),
+        btn('Next: Times →', function () { goStep(2); }, 'primary', { 'data-key': 'next' })
       ])
     ]);
   }
@@ -409,8 +415,8 @@
       }),
       h('p', { class: 'counter' }, count === 1 ? '1 time proposed' : count + ' times proposed'),
       wizardFooter([
-        btn('← Back', function () { goStep(1); }),
-        btn('Tentative schedule complete →', function () { goStep(3); }, 'primary', { disabled: count === 0 })
+        btn('← Back', function () { goStep(1); }, null, { 'data-key': 'back' }),
+        btn('Tentative schedule complete →', function () { goStep(3); }, 'primary', { disabled: count === 0, 'data-key': 'next' })
       ])
     ]);
   }
@@ -471,8 +477,8 @@
       dayTabsIfNarrow(d.weekStart),
       previewGrid(),
       wizardFooter([
-        btn('← Back', function () { goStep(2); }),
-        btn('Next: Review →', function () { goStep(4); }, 'primary', { disabled: d.invitees.length === 0 })
+        btn('← Back', function () { goStep(2); }, null, { 'data-key': 'back' }),
+        btn('Next: Review →', function () { goStep(4); }, 'primary', { disabled: d.invitees.length === 0, 'data-key': 'next' })
       ])
     ]);
   }
@@ -600,8 +606,8 @@
       dayTabsIfNarrow(d.weekStart),
       previewGrid(),
       wizardFooter([
-        btn('← Back', function () { goStep(3); }),
-        btn(label, confirmSave, 'primary', { disabled: errors.length > 0 || state.saving })
+        btn('← Back', function () { goStep(3); }, null, { 'data-key': 'back' }),
+        btn(label, confirmSave, 'primary', { disabled: errors.length > 0 || state.saving, 'data-key': 'next' })
       ])
     ]);
   }
