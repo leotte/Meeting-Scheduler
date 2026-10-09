@@ -17,12 +17,13 @@ var Dom = (function () {
   }
 
   function append(el, children) {
-    if (children === null || children === undefined || children === false) return;
+    if (children === null || children === undefined || children === false || children === true) return;
     if (Array.isArray(children)) {
       children.forEach(function (c) { append(el, c); });
       return;
     }
-    el.appendChild(typeof children === 'string' ? document.createTextNode(children) : children);
+    var isText = typeof children === 'string' || typeof children === 'number';
+    el.appendChild(isText ? document.createTextNode(String(children)) : children);
   }
 
   function btn(label, onClick, kind, extra) {
@@ -45,35 +46,53 @@ var Dom = (function () {
 
   function focusByKey(container, key) {
     if (!key) return;
-    var el = container.querySelector('[data-key="' + key + '"]');
+    var safe = (window.CSS && CSS.escape) ? CSS.escape(String(key)) : key;
+    var el = container.querySelector('[data-key="' + safe + '"]');
     if (el) el.focus();
   }
 
+  // Close function of the dialog that is currently open, or null.
+  var closeOpenDialog = null;
+
   function confirmDialog(opts) {
+    if (closeOpenDialog) closeOpenDialog(false);
     return new Promise(function (resolve) {
       var root = document.getElementById('dialog-root');
       var previous = document.activeElement;
       function close(result) {
         document.removeEventListener('keydown', onKey);
+        if (closeOpenDialog === close) closeOpenDialog = null;
         clear(root);
         if (previous && previous.focus) previous.focus();
         resolve(result);
       }
       function onKey(e) {
-        if (e.key === 'Escape') close(false);
+        if (e.key === 'Escape') {
+          close(false);
+        } else if (e.key === 'Tab') {
+          // Keep focus inside the dialog: cycle between its two buttons.
+          e.preventDefault();
+          var buttons = [cancel, ok];
+          var last = buttons.length - 1;
+          var i = buttons.indexOf(document.activeElement);
+          var next = e.shiftKey ? (i <= 0 ? last : i - 1) : (i < 0 || i === last ? 0 : i + 1);
+          buttons[next].focus();
+        }
       }
       var ok = h('button', { type: 'button', class: 'btn ' + (opts.danger ? 'btn-danger' : 'btn-primary'),
         onclick: function () { close(true); } }, opts.okLabel || 'OK');
       var cancel = h('button', { type: 'button', class: 'btn btn-secondary',
         onclick: function () { close(false); } }, opts.cancelLabel || 'Cancel');
       clear(root).appendChild(h('div', { class: 'dialog-backdrop' },
-        h('div', { class: 'dialog', role: 'alertdialog', 'aria-modal': 'true', 'aria-labelledby': 'dialog-title' }, [
+        h('div', { class: 'dialog', role: 'alertdialog', 'aria-modal': 'true',
+          'aria-labelledby': 'dialog-title', 'aria-describedby': 'dialog-body' }, [
           h('h2', { id: 'dialog-title', class: 'dialog-title' }, opts.title || 'Are you sure?'),
-          (opts.lines || []).map(function (line) { return h('p', null, line); }),
+          h('div', { id: 'dialog-body' }, (opts.lines || []).map(function (line) { return h('p', null, line); })),
           h('div', { class: 'dialog-actions' }, [cancel, ok])
         ])));
+      closeOpenDialog = close;
       document.addEventListener('keydown', onKey);
-      ok.focus();
+      (opts.danger ? cancel : ok).focus();
     });
   }
 

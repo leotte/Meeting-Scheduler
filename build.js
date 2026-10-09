@@ -32,13 +32,18 @@ function clientFiles(ext) {
 }
 
 function wrapScript(code) {
-  if (code.indexOf('</script') !== -1) throw new Error('Script source must not contain "</script"');
+  if (/<\/script/i.test(code)) throw new Error('Script source must not contain "</script" (any case)');
   return '<script>\n' + code + '</script>\n';
+}
+
+function wrapStyle(css) {
+  if (/<\/style/i.test(css)) throw new Error('Stylesheet source must not contain "</style" (any case)');
+  return '<style>\n' + css + '</style>\n';
 }
 
 function collectIncludes() {
   const includes = {
-    styles: '<style>\n' + read('client/styles.css') + '</style>\n',
+    styles: wrapStyle(read('client/styles.css')),
     js_logic: wrapScript(read('shared/logic.js'))
   };
   clientFiles('.js').forEach((f) => {

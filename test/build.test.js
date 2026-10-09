@@ -20,6 +20,7 @@ test('dist holds the manifest and the server files', () => {
     assert.ok(fs.existsSync(path.join(ROOT, 'dist', f)), f);
   }
   assert.equal(JSON.parse(dist('appsscript.json')).timeZone, 'America/Indiana/Indianapolis');
+  assert.equal(fs.existsSync(path.join(ROOT, 'dist', 'preview-shim.js')), false, 'preview shim must not ship');
 });
 
 test('styles and client scripts are wrapped as HTML includes', () => {
@@ -27,6 +28,7 @@ test('styles and client scripts are wrapped as HTML includes', () => {
   for (const name of ['js_logic', 'js_dom', 'js_api']) {
     assert.match(dist(name + '.html'), /^<script>\n[\s\S]*<\/script>\n$/, name);
   }
+  assert.ok(dist('js_logic.html').includes('var Logic = (function () {'), 'js_logic carries the Logic module');
 });
 
 test('page templates are copied unchanged into dist', () => {

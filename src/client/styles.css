@@ -139,6 +139,7 @@ button.cell:hover { background: var(--cream-dark); }
 .name-row input { flex: none; width: 16px; height: 16px; margin: 0; }
 .name-row-active label { font-weight: 700; background: var(--cream); outline: 2px solid var(--crimson); cursor: pointer; }
 .grid :focus-visible { outline-offset: -3px; }
+.block-edit:focus-visible, .block-best:focus-visible { outline-color: var(--cream); }
 
 /* Dialog */
 .dialog-backdrop { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(7, 35, 50, 0.45); }

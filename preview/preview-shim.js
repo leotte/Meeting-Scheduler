@@ -52,6 +52,15 @@
     }
   };
 
+  // Same calls the real server (main.js run_) rewrites for invitees.
+  var INVITEE_CALLS = { apiGetPublicPoll: true, apiSaveResponse: true };
+
+  function inviteeMessage(result) {
+    if (!result.ok && result.code === 'server_error') result.message = 'Something went wrong.';
+    if (!result.ok && result.code === 'sheet_missing') result.message = 'This poll is no longer available.';
+    return result;
+  }
+
   function runner(onSuccess, onFailure) {
     var r = {
       withSuccessHandler: function (fn) { return runner(fn, onFailure); },
@@ -67,6 +76,7 @@
             return;
           }
           var result = Service.envelope(function () { return handlers[name].apply(null, args); });
+          if (INVITEE_CALLS[name]) result = inviteeMessage(result);
           if (onSuccess) onSuccess(JSON.parse(JSON.stringify(result)));
         }, DELAY_MS);
       };
