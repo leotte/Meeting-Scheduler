@@ -138,6 +138,8 @@ button.cell:hover { background: var(--cream-dark); }
 .name-row label { display: flex; align-items: center; gap: 6px; padding: 2px 4px; border-radius: 4px; overflow-wrap: anywhere; }
 .name-row input { flex: none; width: 16px; height: 16px; margin: 0; }
 .name-row-active label { font-weight: 700; background: var(--cream); outline: 2px solid var(--crimson); cursor: pointer; }
+.name-row-ticked label { font-weight: 700; }
+.tick-mark { color: var(--crimson-dark); margin-left: 2px; }
 .grid :focus-visible { outline-offset: -3px; }
 .block-edit:focus-visible, .block-best:focus-visible { outline-color: var(--cream); }
 

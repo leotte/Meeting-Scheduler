@@ -88,8 +88,14 @@ var Grid = (function () {
           'data-key': active ? 't-' + block.blockId : null,
           onchange: active ? function (e) { opts.onToggle(block.blockId, e.target.checked); } : null
         });
-        return h('li', { class: 'name-row' + (active ? ' name-row-active' : '') },
-          h('label', null, [box, h('span', null, p.name)]));
+        // A disabled checkbox is drawn faint grey, so another person's tick also gets bold text and a visible mark.
+        var ticked = !active && ticks.indexOf(p.inviteeId) !== -1;
+        return h('li', { class: 'name-row' + (active ? ' name-row-active' : '') + (ticked ? ' name-row-ticked' : '') },
+          h('label', null, [
+            box,
+            h('span', null, p.name),
+            ticked ? h('span', { class: 'tick-mark', 'aria-hidden': 'true' }, '✓') : null
+          ]));
       }))
     ]);
   }
