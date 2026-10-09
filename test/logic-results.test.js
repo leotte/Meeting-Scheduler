@@ -28,7 +28,8 @@ test('tally counts valid ticks once and finds the best blocks', () => {
     { inviteeId: 'i1', blockId: 'b1' }, { inviteeId: 'i2', blockId: 'b1' },
     { inviteeId: 'i3', blockId: 'b2' }, { inviteeId: 'i1', blockId: 'b2' },
     { inviteeId: 'ghost', blockId: 'b1' }, { inviteeId: 'i1', blockId: 'bX' },
-    { inviteeId: 'i1', blockId: 'b1' }
+    { inviteeId: 'i1', blockId: 'b1' },
+    { inviteeId: 'i1', blockId: 'toString' }, { inviteeId: 'constructor', blockId: 'b3' }
   ];
   assert.deepEqual(Logic.tally(blocks, invitees, responses), {
     ticks: { b1: ['i1', 'i2'], b2: ['i3', 'i1'], b3: [] },

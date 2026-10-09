@@ -242,12 +242,12 @@ var Logic = (function () {
   // ---- Results ------------------------------------------------------------
 
   function tally(blocks, invitees, responses) {
-    var known = {};
+    var known = Object.create(null);
     invitees.forEach(function (p) { known[p.inviteeId] = true; });
     var ticks = {}, counts = {};
     blocks.forEach(function (b) { ticks[b.blockId] = []; });
     responses.forEach(function (r) {
-      var list = ticks[r.blockId];
+      var list = Object.prototype.hasOwnProperty.call(ticks, r.blockId) ? ticks[r.blockId] : null;
       if (list && known[r.inviteeId] && list.indexOf(r.inviteeId) === -1) list.push(r.inviteeId);
     });
     var max = 0;
@@ -270,7 +270,7 @@ var Logic = (function () {
 
   function editImpact(existing, draft) {
     var poll = existing.poll;
-    var keepBlock = {}, keepInvitee = {};
+    var keepBlock = Object.create(null), keepInvitee = Object.create(null);
     (draft.blocks || []).forEach(function (b) { if (b.blockId) keepBlock[b.blockId] = true; });
     (draft.invitees || []).forEach(function (p) { if (p.inviteeId) keepInvitee[p.inviteeId] = true; });
 
