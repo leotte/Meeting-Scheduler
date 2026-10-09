@@ -1145,6 +1145,7 @@ test('unknown or malformed poll ids are not_found', () => {
   assert.throws(() => service.getPublicPoll('../etc'), withCode('not_found'));
   assert.throws(() => service.getPoll(''), withCode('not_found'));
   assert.throws(() => service.deletePoll(undefined), withCode('not_found'));
+  assert.throws(() => service.savePoll(sampleDraft({ pollId: '' })), withCode('not_found'));
 });
 
 test('saveResponse replaces the invitee’s ticks, removes repeats and marks them responded', () => {
@@ -1257,6 +1258,16 @@ test('editing: unknown or repeated ids in a draft are rejected', () => {
   const e = sharedPollWithAnswers();
   e.draft.blocks[0].blockId = 'toString';
   assert.throws(() => e.service.savePoll(e.draft), withCode('invalid'));
+
+  const f = sharedPollWithAnswers();
+  f.draft.blocks[0].startMin = 900;
+  assert.throws(() => f.service.savePoll(f.draft),
+    (err) => withCode('invalid')(err) && err.message === 'A saved time cannot be moved.');
+  assert.equal(f.store.peek().blocks.find((b) => b.blockId === MON).startMin, 540);
+
+  const g = setup();
+  assert.throws(() => g.service.savePoll(sampleDraft({ blocks: [{ blockId: 'toString', day: 0, startMin: 540 }] })),
+    (err) => withCode('invalid')(err) && err.message === 'Unknown time block.');
 });
 
 test('editing a poll that no longer exists is not_found', () => {
@@ -1320,6 +1331,7 @@ var Service = (function () {
     this.code = code;
     this.message = message || code;
     this.isServiceError = true;
+    this.stack = new Error(this.message).stack;
   }
   ServiceError.prototype = Object.create(Error.prototype);
   ServiceError.prototype.constructor = ServiceError;
@@ -1425,22 +1437,26 @@ var Service = (function () {
       if (errors.length) throw new ServiceError('invalid', errors.join(' '));
       var t = store.read();
       var now = deps.now();
-      var existing = draft.pollId ? requireBundle(t, draft.pollId) : null;
+      var existing = draft.pollId != null ? requireBundle(t, draft.pollId) : null;
       var impact = existing ? L().editImpact(existing, draft) : null;
       var pollId = existing ? existing.poll.pollId : uniqueId(indexBy(t.polls, 'pollId'));
 
-      var oldBlocks = existing ? indexBy(existing.blocks, 'blockId') : {};
-      var takenBlockIds = existing ? indexBy(existing.blocks, 'blockId') : {};
-      var seenBlocks = {};
+      var oldBlocks = indexBy(existing ? existing.blocks : [], 'blockId');
+      var takenBlockIds = indexBy(existing ? existing.blocks : [], 'blockId');
+      var seenBlocks = Object.create(null);
       var blocks = L().sortBlocks(draft.blocks).map(function (b) {
         rejectRepeat(seenBlocks, b.blockId, 'time block');
         if (b.blockId && !oldBlocks[b.blockId]) throw new ServiceError('invalid', 'Unknown time block.');
+        if (b.blockId && (oldBlocks[b.blockId].day !== b.day || oldBlocks[b.blockId].startMin !== b.startMin)) {
+          // A saved block keeps its answers, so it must not change time; remove it and add a new one instead.
+          throw new ServiceError('invalid', 'A saved time cannot be moved.');
+        }
         return { pollId: pollId, blockId: b.blockId || uniqueId(takenBlockIds), day: b.day, startMin: b.startMin };
       });
 
-      var oldInvitees = existing ? indexBy(existing.invitees, 'inviteeId') : {};
-      var takenInviteeIds = existing ? indexBy(existing.invitees, 'inviteeId') : {};
-      var seenInvitees = {};
+      var oldInvitees = indexBy(existing ? existing.invitees : [], 'inviteeId');
+      var takenInviteeIds = indexBy(existing ? existing.invitees : [], 'inviteeId');
+      var seenInvitees = Object.create(null);
       var invitees = draft.invitees.map(function (p, i) {
         rejectRepeat(seenInvitees, p.inviteeId, 'invitee');
         if (p.inviteeId && !oldInvitees[p.inviteeId]) throw new ServiceError('invalid', 'Unknown invitee.');
@@ -1688,7 +1704,7 @@ function loadMain(opts) {
       getScriptLock: () => ({ waitLock: () => lockLog.push('wait'), releaseLock: () => lockLog.push('release') })
     },
     SheetStore: {
-      open: () => store,
+      open: () => { if (opts.openError) throw new Error(opts.openError); return store; },
       createNew: () => { calls.createNew += 1; return store; }
     },
     Utilities: {
@@ -1715,7 +1731,8 @@ function loadMain(opts) {
       createHtmlOutputFromFile: (name) => ({ getContent: () => '<!-- ' + name + ' -->' })
     },
     ScriptApp: { getService: () => ({ getUrl: () => DEPLOY_URL }) },
-    Logger: { log: () => {} }
+    Logger: { log: () => {} },
+    console: { error: () => {} }
   };
   vm.createContext(sandbox);
   vm.runInContext(MAIN, sandbox);
@@ -1814,6 +1831,13 @@ test('invitee API works for anonymous visitors and reports errors as data', () =
   assert.deepEqual(plain(visitor.m.apiGetPublicPoll('zzzzzzzz')),
     { ok: false, code: 'not_found', message: 'This poll is no longer available.' });
   assert.equal(saved.ok, true);
+
+  const broken = loadMain({ active: '', openError: 'Sheet 1AbC is unreadable' });
+  assert.deepEqual(plain(broken.m.apiGetPublicPoll('abcd1234')),
+    { ok: false, code: 'server_error', message: 'Something went wrong.' });
+  const brokenOwner = loadMain({ active: OWNER, openError: 'Sheet 1AbC is unreadable' });
+  assert.deepEqual(plain(brokenOwner.m.apiListPolls('')),
+    { ok: false, code: 'server_error', message: 'Sheet 1AbC is unreadable' });
 });
 
 test('apiCreateDataSheet is owner-only and calls SheetStore.createNew', () => {
@@ -2038,7 +2062,7 @@ function service_() {
 }
 
 function run_(options, fn) {
-  return Service.envelope(function () {
+  var result = Service.envelope(function () {
     if (options.owner && !isOwner_(options.key)) {
       throw new Service.ServiceError('not_owner', 'This page is for the organizer only.');
     }
@@ -2053,6 +2077,11 @@ function run_(options, fn) {
       if (lock) lock.releaseLock();
     }
   });
+  if (!result.ok && result.code === 'server_error') {
+    console.error(result.message); // visible in the Apps Script Executions log
+    if (!options.owner) result.message = 'Something went wrong.'; // never show internal errors to invitees
+  }
+  return result;
 }
 
 // ---- Organizer API (owner only) --------------------------------------------
