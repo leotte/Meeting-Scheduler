@@ -1,0 +1,11 @@
+{
+  "name": "meeting-scheduler",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Meeting availability polls on Google Apps Script",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "build": "node build.js"
+  }
+}
