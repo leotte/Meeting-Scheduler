@@ -157,3 +157,49 @@ test('sheet I/O grows the grid and clears leftover rows', () => {
   assert.deepEqual(after.blocks, tables.blocks);
   assert.deepEqual(after.invitees, tables.invitees);
 });
+
+// open() is the only place that touches Apps Script globals; run it against stand-ins.
+function withAppsScriptGlobals(ss, fn) {
+  const store = {};
+  const events = [];
+  const saved = {};
+  const names = ['PropertiesService', 'SpreadsheetApp', 'Service'];
+  names.forEach((n) => { saved[n] = Object.getOwnPropertyDescriptor(globalThis, n); });
+  globalThis.PropertiesService = {
+    getScriptProperties: () => ({
+      getProperty: (k) => (k in store ? store[k] : null),
+      setProperty: (k, v) => { store[k] = v; },
+      deleteProperty: (k) => { delete store[k]; }
+    })
+  };
+  globalThis.SpreadsheetApp = {
+    create: () => ss,
+    openById: () => ss,
+    flush: () => { events.push('flush'); }
+  };
+  globalThis.Service = { ServiceError: class extends Error {} };
+  try {
+    return fn(store, events);
+  } finally {
+    names.forEach((n) => {
+      if (saved[n]) Object.defineProperty(globalThis, n, saved[n]);
+      else delete globalThis[n];
+    });
+  }
+}
+
+test('open() flushes the sheet right after every write', () => {
+  const ss = fakeSpreadsheet(5);
+  ss.getId = () => 'sheet-1';
+  withAppsScriptGlobals(ss, (props, events) => {
+    const db = SheetStore.open();
+    assert.equal(props.DATA_SHEET_ID, 'sheet-1');
+    const tables = db.read();
+    assert.deepEqual(events, []);
+    db.write(Object.assign({}, tables, {
+      blocks: [{ pollId: 'abcdEFGH', blockId: 'blk00001', day: 0, startMin: 540 }]
+    }));
+    assert.deepEqual(events, ['flush']);
+    assert.equal(db.read().blocks.length, 1);
+  });
+});

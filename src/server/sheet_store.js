@@ -104,7 +104,10 @@ var SheetStore = (function () {
     ensureTabs(ss);
     return {
       read: function () { return readAll(ss); },
-      write: function (tables) { writeAll(ss, tables); }
+      write: function (tables) {
+        writeAll(ss, tables);
+        SpreadsheetApp.flush(); // Apps Script batches Sheet writes; commit them before the caller releases the lock
+      }
     };
   }
 
