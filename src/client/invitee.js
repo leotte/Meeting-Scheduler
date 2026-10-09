@@ -75,13 +75,20 @@
 
   // ---- Rendering -------------------------------------------------------------
 
+  function hasKey(key) {
+    var safe = (window.CSS && CSS.escape) ? CSS.escape(String(key)) : key;
+    return !!app.querySelector('[data-key="' + safe + '"]');
+  }
+
   function render() {
     var views = { loading: renderLoading, gone: renderGone, load_error: renderLoadError, poll: renderPoll };
     // Remember which control had focus, so an in-place re-render of the same screen can give it back.
     var active = document.activeElement;
     var previousKey = active && active !== app && app.contains(active) ? active.getAttribute('data-key') : null;
     Dom.clear(app).appendChild(views[state.view]());
-    if (state.focusKey) {
+    // A requested control that is not on screen any more (for example Save, after the organizer removed this
+    // invitee) is treated as if no control had been requested.
+    if (state.focusKey && hasKey(state.focusKey)) {
       Dom.focusByKey(app, state.focusKey);
     } else if (state.view !== lastView) {
       var heading = app.querySelector('h1');
@@ -157,9 +164,22 @@
     var options = [h('option', { value: '' }, 'Choose your name…')].concat(state.poll.invitees.map(function (x) {
       return h('option', { value: x.inviteeId }, x.name);
     }));
+    // The name is only confirmed by Continue (or Enter): committing on `change` would fire for every option
+    // a keyboard user arrows through, and remove the list under them.
     return h('div', { class: 'field' }, [
       h('label', { for: 'f-who' }, 'Who are you?'),
-      h('select', { id: 'f-who', 'data-key': 'who', onchange: function (e) { if (e.target.value) choosePerson(e.target.value); } }, options),
+      h('div', { class: 'inline-row' }, [
+        h('select', {
+          id: 'f-who', 'data-key': 'who', style: { flex: '1 1 auto', minWidth: '0' },
+          onkeydown: function (e) {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              continueWithName();
+            }
+          }
+        }, options),
+        btn('Continue', continueWithName, 'primary', { 'data-key': 'continue' })
+      ]),
       h('p', { class: 'note' }, 'Not on the list? Contact the organizer.')
     ]);
   }
@@ -177,6 +197,18 @@
   }
 
   // ---- Actions ---------------------------------------------------------------
+
+  function continueWithName() {
+    var select = document.getElementById('f-who');
+    if (select && select.value) {
+      choosePerson(select.value);
+      return;
+    }
+    state.message = { kind: 'error', text: 'Choose your name first.' };
+    state.focusKey = 'who';
+    lastSpoken = ''; // announce again even if the same message is already showing
+    render();
+  }
 
   function choosePerson(id) {
     state.me = id;
@@ -216,6 +248,7 @@
   }
 
   function save() {
+    if (state.saving) return;
     var go = state.pending.length === 0
       ? Dom.confirmDialog({
           title: 'None of these times work for you?',
