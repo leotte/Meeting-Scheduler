@@ -239,6 +239,126 @@ var Logic = (function () {
   api.findDuplicateNames = findDuplicateNames;
   api.validateDraft = validateDraft;
 
+  // ---- Results ------------------------------------------------------------
+
+  function tally(blocks, invitees, responses) {
+    var known = {};
+    invitees.forEach(function (p) { known[p.inviteeId] = true; });
+    var ticks = {}, counts = {};
+    blocks.forEach(function (b) { ticks[b.blockId] = []; });
+    responses.forEach(function (r) {
+      var list = ticks[r.blockId];
+      if (list && known[r.inviteeId] && list.indexOf(r.inviteeId) === -1) list.push(r.inviteeId);
+    });
+    var max = 0;
+    blocks.forEach(function (b) {
+      counts[b.blockId] = ticks[b.blockId].length;
+      if (counts[b.blockId] > max) max = counts[b.blockId];
+    });
+    var best = max === 0 ? [] : blocks
+      .filter(function (b) { return counts[b.blockId] === max; })
+      .map(function (b) { return b.blockId; });
+    return { ticks: ticks, counts: counts, best: best, max: max };
+  }
+
+  function listNames(names) {
+    if (names.length <= 1) return names.join('');
+    return names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
+  }
+
+  // ---- Editing a shared poll ----------------------------------------------
+
+  function editImpact(existing, draft) {
+    var poll = existing.poll;
+    var keepBlock = {}, keepInvitee = {};
+    (draft.blocks || []).forEach(function (b) { if (b.blockId) keepBlock[b.blockId] = true; });
+    (draft.invitees || []).forEach(function (p) { if (p.inviteeId) keepInvitee[p.inviteeId] = true; });
+
+    var removedBlocks = existing.blocks.filter(function (b) { return !keepBlock[b.blockId]; }).map(function (b) {
+      var names = existing.invitees.filter(function (p) {
+        return existing.responses.some(function (r) { return r.blockId === b.blockId && r.inviteeId === p.inviteeId; });
+      }).map(function (p) { return p.name; });
+      return { blockId: b.blockId, label: blockLabel(b, poll.lengthMin), names: names };
+    });
+    var removedInvitees = existing.invitees.filter(function (p) { return !keepInvitee[p.inviteeId]; }).map(function (p) {
+      return { inviteeId: p.inviteeId, name: p.name, responded: !!p.respondedAt };
+    });
+    var weekChanged = draft.weekStart !== poll.weekStart;
+    var lengthChanged = draft.lengthMin !== poll.lengthMin;
+    var clearsAll = weekChanged || lengthChanged;
+    var responders = existing.invitees.filter(function (p) { return !!p.respondedAt; }).map(function (p) { return p.name; });
+    var needsConfirm = (clearsAll && responders.length > 0) ||
+      removedBlocks.some(function (b) { return b.names.length > 0; }) ||
+      removedInvitees.some(function (p) { return p.responded; });
+    return {
+      removedBlocks: removedBlocks,
+      removedInvitees: removedInvitees,
+      weekChanged: weekChanged,
+      lengthChanged: lengthChanged,
+      clearsAll: clearsAll,
+      responders: responders,
+      needsConfirm: needsConfirm,
+      bumpsVersion: clearsAll || removedBlocks.length > 0 || removedInvitees.length > 0
+    };
+  }
+
+  function describeImpact(impact) {
+    if (impact.clearsAll) {
+      if (!impact.responders.length) return [];
+      var what = impact.weekChanged && impact.lengthChanged ? 'the week and the meeting length'
+        : impact.weekChanged ? 'the week' : 'the meeting length';
+      return ['You changed ' + what + '. All answers from ' + listNames(impact.responders) +
+        ' will be cleared, and they will need to respond again.'];
+    }
+    var lines = [];
+    impact.removedBlocks.forEach(function (b) {
+      if (!b.names.length) return;
+      lines.push(listNames(b.names) + ' ticked ' + b.label + '. Removing this time deletes ' +
+        (b.names.length === 1 ? 'that answer.' : 'those answers.'));
+    });
+    impact.removedInvitees.forEach(function (p) {
+      if (p.responded) lines.push(p.name + ' already responded. Removing ' + p.name + ' deletes their answers.');
+    });
+    return lines;
+  }
+
+  // ---- Ids and drafts -----------------------------------------------------
+
+  var ID_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+
+  function idFromBytes(bytes) {
+    var out = '';
+    for (var i = 0; i < 8; i++) out += ID_ALPHABET.charAt(bytes[i] % ID_ALPHABET.length);
+    return out;
+  }
+
+  function isValidId(id) {
+    return typeof id === 'string' && /^[A-Za-z0-9]{8}$/.test(id);
+  }
+
+  function draftFromBundle(bundle) {
+    return {
+      pollId: bundle.poll.pollId,
+      title: bundle.poll.title,
+      weekStart: bundle.poll.weekStart,
+      lengthMin: bundle.poll.lengthMin,
+      blocks: sortBlocks(bundle.blocks).map(function (b) {
+        return { blockId: b.blockId, day: b.day, startMin: b.startMin };
+      }),
+      invitees: bundle.invitees.slice().sort(function (a, b) { return a.order - b.order; }).map(function (p) {
+        return { inviteeId: p.inviteeId, name: p.name };
+      })
+    };
+  }
+
+  api.tally = tally;
+  api.listNames = listNames;
+  api.editImpact = editImpact;
+  api.describeImpact = describeImpact;
+  api.idFromBytes = idFromBytes;
+  api.isValidId = isValidId;
+  api.draftFromBundle = draftFromBundle;
+
   return api;
 })();
 
