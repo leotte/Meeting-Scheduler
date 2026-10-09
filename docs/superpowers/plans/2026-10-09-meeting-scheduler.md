@@ -2119,6 +2119,8 @@ git commit -m "feat: add Google Sheet store, web app routing and server API" -m 
   - `build.js`: every `src/client/*.html` is a page template; every `src/client/*.js` becomes include `js_<basename>`; `src/shared/logic.js` becomes include `js_logic`; `src/client/styles.css` becomes include `styles`. `dist/` gets `appsscript.json`, the four server files, every include as `<name>.html`, and every page template unchanged. `preview-dist/` gets each page with includes inlined and the BOOT line replaced by the preview shim, plus `logic.js`, `service.js`, `preview-shim.js` and an `index.html`.
   - `Dom.h(tag, attrs?, children?) → Element`. Attribute rules: `null`/`undefined`/`false` are skipped; `class` sets `className`; `onX` with a function adds an event listener; `style` with an object sets style properties; `true` sets an empty attribute; anything else goes through `setAttribute`. Children may be strings, elements, `null`/`false` (skipped) or nested arrays.
   - `Dom.clear(el) → el`, `Dom.focusByKey(container, key)` (focuses `[data-key="<key>"]` if present)
+  - `Dom.btn(label, onClick, kind?, extra?) → HTMLButtonElement` with class `btn btn-<kind>` (`kind` defaults to `secondary`; `extra` is merged into the attributes)
+  - `Dom.messageBox(m) → Element|null` for `m = null | {kind: 'error'|'ok'|'info', text, retry?}`; renders a `msg msg-<kind>` box (`role="alert"` for errors, otherwise `status`) with a **Try again** link when `retry` is set
   - `Dom.confirmDialog({title, lines?, okLabel?, cancelLabel?, danger?}) → Promise<boolean>` (renders into `#dialog-root`; Escape cancels)
   - `Dom.copyText(input) → Promise<boolean>`
   - `Dom.storageGet(key) → string|null`, `Dom.storageSet(key, value)`, `Dom.storageRemove(key)` (never throw)
@@ -2466,6 +2468,19 @@ var Dom = (function () {
     el.appendChild(typeof children === 'string' ? document.createTextNode(children) : children);
   }
 
+  function btn(label, onClick, kind, extra) {
+    return h('button', Object.assign({ type: 'button', class: 'btn btn-' + (kind || 'secondary'), onclick: onClick }, extra || {}), label);
+  }
+
+  // m: null or {kind: 'error'|'ok'|'info', text, retry?: function}
+  function messageBox(m) {
+    if (!m) return null;
+    return h('div', { class: 'msg msg-' + m.kind, role: m.kind === 'error' ? 'alert' : 'status' }, [
+      h('span', null, m.text),
+      m.retry ? btn('Try again', m.retry, 'link') : null
+    ]);
+  }
+
   function clear(el) {
     while (el.firstChild) el.removeChild(el.firstChild);
     return el;
@@ -2534,6 +2549,8 @@ var Dom = (function () {
 
   return {
     h: h,
+    btn: btn,
+    messageBox: messageBox,
     clear: clear,
     focusByKey: focusByKey,
     confirmDialog: confirmDialog,
@@ -2929,6 +2946,7 @@ var Grid = (function () {
 /* Organizer page: poll list, four-step setup, share screen, results, data-sheet recovery. */
 (function () {
   var h = Dom.h;
+  var btn = Dom.btn;
   var L = Logic;
   var app = document.getElementById('app');
   var boot = window.BOOT || {};
@@ -2980,10 +2998,6 @@ var Grid = (function () {
     return true;
   }
 
-  function btn(label, onClick, kind, extra) {
-    return h('button', Object.assign({ type: 'button', class: 'btn btn-' + (kind || 'secondary'), onclick: onClick }, extra || {}), label);
-  }
-
   function changed() {
     state.dirty = true;
   }
@@ -3018,12 +3032,7 @@ var Grid = (function () {
   }
 
   function messageEl() {
-    var m = state.message;
-    if (!m) return null;
-    return h('div', { class: 'msg msg-' + m.kind, role: m.kind === 'error' ? 'alert' : 'status' }, [
-      h('span', null, m.text),
-      m.retry ? btn('Try again', m.retry, 'link') : null
-    ]);
+    return Dom.messageBox(state.message);
   }
 
   function stepMessageEl() {
@@ -3771,6 +3780,7 @@ Expected: FAIL with `ENOENT: no such file or directory, open '.../dist/invitee.h
 /* Invitee page: pick your name, tick the times that work, save. */
 (function () {
   var h = Dom.h;
+  var btn = Dom.btn;
   var L = Logic;
   var app = document.getElementById('app');
   var boot = window.BOOT || {};
@@ -3788,10 +3798,6 @@ Expected: FAIL with `ENOENT: no such file or directory, open '.../dist/invitee.h
     dayFilter: 0,
     focusKey: null
   };
-
-  function btn(label, onClick, kind, extra) {
-    return h('button', Object.assign({ type: 'button', class: 'btn btn-' + (kind || 'secondary'), onclick: onClick }, extra || {}), label);
-  }
 
   function findInvitee(id) {
     return state.poll.invitees.filter(function (p) { return p.inviteeId === id; })[0] || null;
@@ -3905,11 +3911,7 @@ Expected: FAIL with `ENOENT: no such file or directory, open '.../dist/invitee.h
   }
 
   function saveBar() {
-    var m = state.message;
-    var msg = m ? h('div', { class: 'msg msg-' + m.kind, role: m.kind === 'error' ? 'alert' : 'status' }, [
-      h('span', null, m.text),
-      m.retry ? btn('Try again', m.retry, 'link') : null
-    ]) : null;
+    var msg = Dom.messageBox(state.message);
     if (!state.me) return msg ? h('div', { class: 'toolbar-sticky' }, msg) : null;
     return h('div', { class: 'toolbar-sticky' }, [
       msg,
