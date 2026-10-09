@@ -4317,11 +4317,15 @@ Walk the organizer through README steps 5–9 (deploy, outsider test, owner test
 | Check | Expected | If not |
 |---|---|---|
 | Deploy dialog offers *Anyone* | Yes | Redo setup with a personal Google account |
-| Invitee link in a signed-out private window | Loads without sign-in | Redo setup with a personal Google account |
-| Bare URL in a signed-out private window | "This page is for the organizer only." | Stop and investigate before sharing any link |
-| Bare URL in the organizer's own browser | "My polls" | Run `setupAdminKey`; use the `?admin=` link |
+| Bare URL in the organizer's own browser | "My polls" | Run `setupAdminKey`; use the `?admin=` link (try a browser profile signed in to only the IU account first) |
+| Bare URL in a signed-out private window | "This page is for the organizer only." | Stop. Share no links until this is understood |
 | Link shown after creating a poll | Starts with the Web app URL | Set Script Property `BASE_URL` |
-| Two invitees answer; Results and Sheet | Counts, "Most available" and rows match | Debug with the Apps Script **Executions** log |
+| Invitee link in a signed-out private window | Loads without sign-in | If the link contains `/a/macros/iu.edu/`, try the same link without that part (`/macros/s/<id>/exec`); if that loads signed out, set `BASE_URL` to it. Otherwise redo setup with a personal Google account |
+| Two invitees answer (second uses "Not you? Switch"); Results and Sheet | Counts, "Most available" and rows match | Debug with the Apps Script **Executions** log |
+| Invitee named `'=x` saved, then reloaded | Name shows exactly `'=x` in the page and the Sheet | Investigate the Sheet's apostrophe handling before sharing |
+| Copy button and leave-page warning inside the deployed page | Link copies (or the manual-copy hint shows); unsaved ticks warn on leaving | Note it; both have fallbacks |
+| Invitee link on a real iPhone (Safari) | Day tabs, ticks and the sticky Save bar work | Note layout problems for a follow-up |
+| (Optional) a signed-in IU colleague opens the bare URL | "This page is for the organizer only." | Stop and investigate |
 
 - [ ] **Step 7: Record the deployment**
 
