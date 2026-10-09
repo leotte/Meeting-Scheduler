@@ -84,6 +84,7 @@ test('unknown or malformed poll ids are not_found', () => {
   assert.throws(() => service.getPublicPoll('../etc'), withCode('not_found'));
   assert.throws(() => service.getPoll(''), withCode('not_found'));
   assert.throws(() => service.deletePoll(undefined), withCode('not_found'));
+  assert.throws(() => service.savePoll(sampleDraft({ pollId: '' })), withCode('not_found'));
 });
 
 test('saveResponse replaces the invitee’s ticks, removes repeats and marks them responded', () => {
@@ -196,6 +197,16 @@ test('editing: unknown or repeated ids in a draft are rejected', () => {
   const e = sharedPollWithAnswers();
   e.draft.blocks[0].blockId = 'toString';
   assert.throws(() => e.service.savePoll(e.draft), withCode('invalid'));
+
+  const f = sharedPollWithAnswers();
+  f.draft.blocks[0].startMin = 900;
+  assert.throws(() => f.service.savePoll(f.draft),
+    (err) => withCode('invalid')(err) && err.message === 'A saved time cannot be moved.');
+  assert.equal(f.store.peek().blocks.find((b) => b.blockId === MON).startMin, 540);
+
+  const g = setup();
+  assert.throws(() => g.service.savePoll(sampleDraft({ blocks: [{ blockId: 'toString', day: 0, startMin: 540 }] })),
+    (err) => withCode('invalid')(err) && err.message === 'Unknown time block.');
 });
 
 test('editing a poll that no longer exists is not_found', () => {

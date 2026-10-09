@@ -20,6 +20,7 @@ var Service = (function () {
     this.code = code;
     this.message = message || code;
     this.isServiceError = true;
+    this.stack = new Error(this.message).stack;
   }
   ServiceError.prototype = Object.create(Error.prototype);
   ServiceError.prototype.constructor = ServiceError;
@@ -125,22 +126,26 @@ var Service = (function () {
       if (errors.length) throw new ServiceError('invalid', errors.join(' '));
       var t = store.read();
       var now = deps.now();
-      var existing = draft.pollId ? requireBundle(t, draft.pollId) : null;
+      var existing = draft.pollId != null ? requireBundle(t, draft.pollId) : null;
       var impact = existing ? L().editImpact(existing, draft) : null;
       var pollId = existing ? existing.poll.pollId : uniqueId(indexBy(t.polls, 'pollId'));
 
-      var oldBlocks = existing ? indexBy(existing.blocks, 'blockId') : {};
-      var takenBlockIds = existing ? indexBy(existing.blocks, 'blockId') : {};
-      var seenBlocks = {};
+      var oldBlocks = indexBy(existing ? existing.blocks : [], 'blockId');
+      var takenBlockIds = indexBy(existing ? existing.blocks : [], 'blockId');
+      var seenBlocks = Object.create(null);
       var blocks = L().sortBlocks(draft.blocks).map(function (b) {
         rejectRepeat(seenBlocks, b.blockId, 'time block');
         if (b.blockId && !oldBlocks[b.blockId]) throw new ServiceError('invalid', 'Unknown time block.');
+        if (b.blockId && (oldBlocks[b.blockId].day !== b.day || oldBlocks[b.blockId].startMin !== b.startMin)) {
+          // A saved block keeps its answers, so it must not change time; remove it and add a new one instead.
+          throw new ServiceError('invalid', 'A saved time cannot be moved.');
+        }
         return { pollId: pollId, blockId: b.blockId || uniqueId(takenBlockIds), day: b.day, startMin: b.startMin };
       });
 
-      var oldInvitees = existing ? indexBy(existing.invitees, 'inviteeId') : {};
-      var takenInviteeIds = existing ? indexBy(existing.invitees, 'inviteeId') : {};
-      var seenInvitees = {};
+      var oldInvitees = indexBy(existing ? existing.invitees : [], 'inviteeId');
+      var takenInviteeIds = indexBy(existing ? existing.invitees : [], 'inviteeId');
+      var seenInvitees = Object.create(null);
       var invitees = draft.invitees.map(function (p, i) {
         rejectRepeat(seenInvitees, p.inviteeId, 'invitee');
         if (p.inviteeId && !oldInvitees[p.inviteeId]) throw new ServiceError('invalid', 'Unknown invitee.');
