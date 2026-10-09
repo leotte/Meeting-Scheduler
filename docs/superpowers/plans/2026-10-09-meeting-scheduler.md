@@ -472,6 +472,7 @@ test('name helpers trim, collapse spaces and ignore case', () => {
   assert.deepEqual(Logic.parseNameList(''), []);
   assert.deepEqual(Logic.findDuplicateNames(['Ana', 'Raj', 'ana', 'Lee']), ['ana']);
   assert.deepEqual(Logic.findDuplicateNames(['Ana', 'Raj']), []);
+  assert.deepEqual(Logic.findDuplicateNames(['Constructor', '__proto__', 'toString']), []);
 });
 
 test('validateDraft accepts a complete draft', () => {
@@ -497,6 +498,8 @@ test('validateDraft checks the week, title length and blocks', () => {
   assert.deepEqual(Logic.validateDraft(draft({ blocks: [MON9, { blockId: null, day: 0, startMin: 570 }] })),
     ['Times must not overlap and must end by 6:00 PM.']);
   assert.deepEqual(Logic.validateDraft(draft({ lengthMin: 90, blocks: [{ blockId: null, day: 0, startMin: 1020 }] })),
+    ['Times must not overlap and must end by 6:00 PM.']);
+  assert.deepEqual(Logic.validateDraft(draft({ blocks: [MON9, null] })),
     ['Times must not overlap and must end by 6:00 PM.']);
 });
 
@@ -578,7 +581,7 @@ Expected: FAIL with `TypeError: Logic.sortBlocks is not a function`
   }
 
   function findDuplicateNames(names) {
-    var seen = {}, dups = [];
+    var seen = Object.create(null), dups = [];
     names.forEach(function (n) {
       var k = nameKey(n);
       if (seen[k]) dups.push(n);
@@ -603,11 +606,12 @@ Expected: FAIL with `TypeError: Logic.sortBlocks is not a function`
     if (lengthOk) {
       var placed = [];
       for (var i = 0; i < blocks.length; i++) {
-        if (!checkPlacement(placed, blocks[i].day, blocks[i].startMin, draft.lengthMin).ok) {
+        var b = blocks[i];
+        if (!b || !checkPlacement(placed, b.day, b.startMin, draft.lengthMin).ok) {
           errors.push('Times must not overlap and must end by 6:00 PM.');
           break;
         }
-        placed.push(blocks[i]);
+        placed.push(b);
       }
     }
     var invitees = Array.isArray(draft.invitees) ? draft.invitees : [];
@@ -3438,7 +3442,7 @@ var Grid = (function () {
     var d = state.draft;
     var names = L.parseNameList(text);
     if (!names.length) return;
-    var taken = {};
+    var taken = Object.create(null);
     d.invitees.forEach(function (p) { taken[L.nameKey(p.name)] = true; });
     var added = [], skipped = [], tooLong = [];
     names.forEach(function (n) {
