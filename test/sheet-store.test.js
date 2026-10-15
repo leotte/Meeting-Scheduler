@@ -22,18 +22,22 @@ test('numbers are stored as text and read back as numbers', () => {
 test('text a spreadsheet would treat as a formula is escaped and restored', () => {
   for (const s of ['=SUM(A1)', '+1', '-2', '@me']) {
     const encoded = C.encodeCell('name', s);
-    assert.equal(encoded, "'" + s);
+    assert.equal(encoded, '\u200b' + s);
     assert.equal(C.decodeCell('name', encoded), s);
     assert.equal(C.decodeCell('name', s), s);
   }
 });
 
-test('ordinary text and apostrophes are untouched', () => {
+test('ordinary text is untouched and leading apostrophes round-trip', () => {
   assert.equal(C.encodeCell('name', "O'Brien"), "O'Brien");
   assert.equal(C.decodeCell('name', "'Ana"), "'Ana");
   assert.equal(C.encodeCell('respondedAt', ''), '');
   assert.equal(C.encodeCell('respondedAt', null), '');
-  for (const s of ["'=foo", "''", "'Ana", "'@x"]) {
+  assert.equal(C.decodeCell('name', "O'Brien"), "O'Brien");
+  assert.equal(C.encodeCell('name', "'Ana"), "\u200b'Ana");
+  assert.equal(C.encodeCell('name', ''), '');
+  assert.equal(C.decodeCell('name', ''), '');
+  for (const s of ["'=foo", "''", "'Ana", "'@x", "O'Brien", '', '\u200bx']) {
     assert.equal(C.decodeCell('name', C.encodeCell('name', s)), s, s);
   }
 });
@@ -55,7 +59,10 @@ test('rows round-trip for every tab', () => {
 
 // A small fake spreadsheet that follows the Apps Script rules the store depends on:
 // new sheets have a fixed grid, and getRange throws when it reaches past the last row.
-function fakeSpreadsheet(startRows) {
+// With { consumesApostrophe: true } it also models Google Sheets, which treats a leading
+// apostrophe in a string passed to setValues as its "store as text" prefix and drops it.
+function fakeSpreadsheet(startRows, opts) {
+  const consumesApostrophe = !!(opts && opts.consumesApostrophe);
   const sheets = [{ name: 'Sheet1', maxRows: startRows, cells: [], writes: 0 }];
   function wrap(sheet) {
     if (sheet.api) return sheet.api;
@@ -78,7 +85,10 @@ function fakeSpreadsheet(startRows) {
             values.forEach((vals, i) => {
               const r = row - 1 + i;
               sheet.cells[r] = sheet.cells[r] || [];
-              vals.forEach((v, j) => { sheet.cells[r][col - 1 + j] = v; });
+              vals.forEach((v, j) => {
+                const stored = consumesApostrophe && typeof v === 'string' && v.charAt(0) === "'" ? v.slice(1) : v;
+                sheet.cells[r][col - 1 + j] = stored;
+              });
             });
             return range;
           },
@@ -175,6 +185,26 @@ test('sheet I/O grows the grid and clears leftover rows', () => {
   io.writeAll(ss, after);
   ['Polls', 'Blocks', 'Invitees', 'Responses'].forEach((n) => assert.ok(ss.writes()[n] > now[n], n + ' rewritten'));
   assert.deepEqual(io.readAll(ss), after);
+});
+
+test('values survive Sheets consuming a leading apostrophe', () => {
+  const io = SheetStore._io;
+  const ss = fakeSpreadsheet(5, { consumesApostrophe: true });
+  io.ensureTabs(ss);
+  const names = ["'=x", '=x', "'Ana", '@me', '+1', '-2', 'plain'];
+  const tables = {
+    polls: [{ pollId: 'abcdEFGH', title: "'=Budget", weekStart: '2026-10-19', lengthMin: 60, version: 1,
+      createdAt: '2026-10-09T12:00:00.000Z', updatedAt: '2026-10-09T12:00:00.000Z' }],
+    blocks: [{ pollId: 'abcdEFGH', blockId: 'blk00001', day: 0, startMin: 540 }],
+    invitees: names.map((name, i) => ({
+      pollId: 'abcdEFGH', inviteeId: 'inv0000' + (i + 1), name, order: i, respondedAt: ''
+    })),
+    responses: []
+  };
+  io.writeAll(ss, tables);
+  const back = io.readAll(ss);
+  assert.deepEqual(back.invitees.map((r) => r.name), names);
+  assert.deepEqual(back, tables);
 });
 
 // open() is the only place that touches Apps Script globals; run it against stand-ins.

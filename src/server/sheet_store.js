@@ -14,19 +14,24 @@ var SheetStore = (function () {
     { name: 'Responses', key: 'responses', cols: ['pollId', 'inviteeId', 'blockId'] }
   ];
   var NUMERIC = { lengthMin: true, version: true, day: true, startMin: true, order: true };
-  var NEEDS_ESCAPE = /^['=+\-@]/; // formula-like text, plus any leading apostrophe, so decoding is lossless
+  // Text a spreadsheet could read as a formula (= + - @) is stored with a leading zero-width space so it stays
+  // literal. An apostrophe cannot do this job: Google Sheets itself consumes one leading apostrophe on setValues
+  // (its "store as text" prefix), so any text that starts with an apostrophe is escaped too, and so is the escape
+  // character itself, which keeps decoding lossless.
+  var ESC = '\u200b'; // zero-width space: keeps formula-like text and leading apostrophes literal in Sheets
+  var NEEDS_ESCAPE = /^['=+\-@\u200b]/;
 
   function encodeCell(col, value) {
     if (NUMERIC[col]) return String(Number(value));
     var s = value == null ? '' : String(value);
-    return NEEDS_ESCAPE.test(s) ? "'" + s : s;
+    return NEEDS_ESCAPE.test(s) ? ESC + s : s;
   }
 
   function decodeCell(col, value) {
     if (Object.prototype.toString.call(value) === '[object Date]') value = formatDateCell(col, value);
     if (NUMERIC[col]) return Number(value);
     var s = value == null ? '' : String(value);
-    return s.charAt(0) === "'" && NEEDS_ESCAPE.test(s.slice(1)) ? s.slice(1) : s;
+    return s.charAt(0) === ESC ? s.slice(1) : s;
   }
 
   // Guard: cells are written as plain text, but if Sheets ever hands back a Date, restore the string.
