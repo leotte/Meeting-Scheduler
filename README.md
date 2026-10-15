@@ -42,9 +42,9 @@ private, and step 9 checks that IU lets outsiders open the invitee links.
 **Option 1 — push from this folder (recommended)**
 
 This option uses `clasp`, Google's command-line tool for Apps Script, pinned to
-version 2.4.2. The `clasp` dev dependency and the `npm run push` command are
-added to `package.json` in the deployment step of the build plan, so they exist
-only after that step has run.
+version 2.4.2 in `package.json`. This project is already linked to its Apps
+Script project through `.clasp.json`, so after A1–A3 you only need
+`npm run push` (see "Updating").
 
 - **A1.** Turn on the Apps Script API at https://script.google.com/home/usersettings.
 - **A2.** Install the project's tools once (this includes the pinned clasp):
@@ -175,3 +175,18 @@ page.
 | `DATA_SHEET_ID_PREVIOUS` | the app | The id of the sheet that "Create a new data sheet" replaced; copy it back into `DATA_SHEET_ID` to restore that sheet |
 | `ADMIN_KEY` | `setupAdminKey` | Secret for the `?admin=` organizer link (fallback only) |
 | `BASE_URL` | you, if needed | Overrides the base of the invitee links. Anything after a `?` or `#` and any trailing `/` is ignored |
+
+## Deployment
+
+- **Deployed:** 2026-10-15, as a web app (*Execute as: Me*, *Who has access:
+  Anyone*) from the organizer's IU Google account.
+- **Organizer access:** the normal Google sign-in check works; the `?admin=`
+  fallback is not in use (`ADMIN_KEY` not set).
+- **Invitee links:** the app's own address works for signed-out visitors, so
+  `BASE_URL` is not set.
+- **Checks passed:** organizer page signed in; "organizer only" for a
+  signed-out visitor; poll link opened and answered while signed out; a second
+  invitee answered on an iPhone; Results and the data sheet matched; a
+  formula-like name (`=x`) is stored as plain text.
+- **Note:** the first save after the app has been idle can take 10–15 seconds
+  while Google wakes the script; later saves are faster.
