@@ -799,7 +799,7 @@
         dayFilter: currentDayFilter(), invitees: b.invitees, ticks: t.ticks, counts: t.counts, best: t.best,
         activeInviteeId: null, showCounts: true
       }),
-      Dom.sectionHeading('Not yet responded', pending.length ? String(pending.length) : null),
+      Dom.sectionHeading('Not yet responded', pending.length ? (pending.length === 1 ? '1 person' : pending.length + ' people') : null),
       pending.length
         ? h('ul', { class: 'plain-list' }, pending.map(function (p) { return h('li', null, p.name); }))
         : h('p', null, 'Everyone has responded.')
