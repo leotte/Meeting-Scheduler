@@ -46,8 +46,8 @@ var Dom = (function () {
   function pageHeader(opts) {
     return h('header', { class: 'page-header' }, [
       h('p', { class: 'eyebrow' }, PAGE_LABEL),
-      h('h1', null, opts.title),
-      opts.subtitle ? h('p', { class: 'page-subtitle' }, opts.subtitle) : null,
+      h('h1', opts.subtitle ? { 'aria-describedby': 'page-subtitle' } : null, opts.title),
+      opts.subtitle ? h('p', { class: 'page-subtitle', id: 'page-subtitle' }, opts.subtitle) : null,
       opts.lines || null,
       opts.actions && opts.actions.length ? h('div', { class: 'page-actions' }, opts.actions) : null
     ]);

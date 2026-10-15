@@ -126,12 +126,12 @@
   }
 
   function renderGone() {
-    return h('section', null, [h('h1', null, 'Poll not available'), h('p', null, GONE_TEXT)]);
+    return h('section', null, [Dom.pageHeader({ title: 'Poll not available', subtitle: GONE_TEXT })]);
   }
 
   function renderLoadError() {
     return h('section', null, [
-      h('h1', null, 'Couldn’t load this poll'),
+      Dom.pageHeader({ title: 'Couldn’t load this poll' }),
       h('div', { class: 'msg msg-error' }, [
         h('span', null, LOAD_ERROR_TEXT),
         btn('Try again', function () {
@@ -148,9 +148,11 @@
     var t = L.tally(p.blocks, p.invitees, shownResponses());
     var narrow = Grid.isNarrow();
     return h('section', null, [
-      h('h1', null, p.title),
-      h('p', { class: 'note' }, 'Week of ' + L.formatWeekRange(p.weekStart) + ' · ' + p.lengthMin + '-minute meeting'),
-      h('p', { class: 'tz' }, 'All times Eastern (Bloomington)'),
+      Dom.pageHeader({
+        title: p.title,
+        subtitle: 'Week of ' + L.formatWeekRange(p.weekStart) + ' · ' + p.lengthMin + '-minute meeting',
+        lines: [h('p', { class: 'tz' }, 'All times Eastern (Bloomington)')]
+      }),
       whoEl(),
       narrow ? Grid.dayTabs(p.weekStart, state.dayFilter, function (day) {
         state.dayFilter = day;
@@ -179,21 +181,23 @@
     }));
     // The name is only confirmed by Continue (or Enter): committing on `change` would fire for every option
     // a keyboard user arrows through, and remove the list under them.
-    return h('div', { class: 'field' }, [
-      h('label', { for: 'f-who' }, 'Who are you?'),
-      h('div', { class: 'inline-row' }, [
-        h('select', {
-          id: 'f-who', 'data-key': 'who', style: { flex: '1 1 auto', minWidth: '0' },
-          onkeydown: function (e) {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              continueWithName();
+    return h('div', { class: 'field-row' }, [
+      h('div', { class: 'field field-wide picker' }, [
+        h('label', { for: 'f-who' }, 'Who are you?'),
+        h('div', { class: 'inline-row' }, [
+          h('select', {
+            id: 'f-who', 'data-key': 'who',
+            onkeydown: function (e) {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                continueWithName();
+              }
             }
-          }
-        }, options),
-        btn('Continue', continueWithName, 'primary', { 'data-key': 'continue' })
-      ]),
-      h('p', { class: 'note' }, 'Not on the list? Contact the organizer.')
+          }, options),
+          btn('Continue', continueWithName, 'primary', { 'data-key': 'continue' })
+        ]),
+        h('p', { class: 'note' }, 'Not on the list? Contact the organizer.')
+      ])
     ]);
   }
 

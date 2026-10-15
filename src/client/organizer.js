@@ -320,7 +320,7 @@
 
   function renderDetails() {
     var d = state.draft;
-    var weekInfo = h('p', { class: 'note' });
+    var weekInfo = h('p', { class: 'note', id: 'week-info' });
     function showWeek() {
       Dom.clear(weekInfo);
       if (!L.isMonday(d.weekStart)) return;
@@ -343,7 +343,7 @@
         h('div', { class: 'field' }, [
           h('label', { for: 'f-week' }, 'Week'),
           h('input', {
-            type: 'date', id: 'f-week', value: d.weekStart,
+            type: 'date', id: 'f-week', value: d.weekStart, 'aria-describedby': 'week-help week-info',
             onchange: function (e) {
               if (!e.target.value) {
                 d.weekStart = '';
@@ -359,7 +359,7 @@
               showWeek();
             }
           }),
-          h('p', { class: 'note' }, 'Pick any day. The poll uses that Monday–Friday.'),
+          h('p', { class: 'note', id: 'week-help' }, 'Pick any day. The poll uses that Monday–Friday.'),
           weekInfo
         ]),
         h('fieldset', { class: 'field' }, [
