@@ -128,9 +128,10 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--crimson); }
 /* Poll cards (home) */
 .card-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 40px; margin: 0; padding: 0; list-style: none; }
 .poll-card { padding: 20px 0 22px; border-bottom: 1px solid var(--line); }
-.poll-title { margin: 0 0 6px; font-size: 1.45rem; line-height: 1.25; }
+.poll-title { margin: 0 0 6px; font-family: var(--serif); font-size: 1.45rem; line-height: 1.25; }
 .poll-meta { margin: 0 0 8px; font-size: 0.85rem; font-weight: 700; color: var(--meta); }
 .card-links { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 10px; font-size: 0.88rem; }
+.card-links .btn { font-size: inherit; }
 
 /* Wizard */
 .steps { display: flex; flex-wrap: wrap; gap: 6px 24px; margin: 0 0 26px; padding: 0 0 10px; list-style: none; border-bottom: 1px solid var(--line); }

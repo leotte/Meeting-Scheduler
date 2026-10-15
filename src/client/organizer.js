@@ -126,7 +126,7 @@
   }
 
   function renderDenied() {
-    return h('section', null, [h('h1', null, 'Organizer only'), h('p', null, 'This page is for the organizer only.')]);
+    return h('section', null, [Dom.pageHeader({ title: 'Organizer only', subtitle: 'This page is for the organizer only.' })]);
   }
 
   // ---- Home ------------------------------------------------------------------
@@ -155,27 +155,30 @@
   }
 
   function renderHome() {
-    var rows = state.polls.map(function (p) {
-      return h('li', { class: 'poll-row' }, [
-        h('div', null, [
-          h('div', { class: 'poll-title' }, p.title),
-          h('div', { class: 'note' }, 'Week of ' + L.formatWeekRange(p.weekStart) + ' · ' + p.lengthMin +
-            ' min · ' + p.respondedCount + ' of ' + p.invitedCount + ' responded')
-        ]),
-        h('div', { class: 'actions' }, [
-          btn('Results', function () { openResults(p.pollId); }, 'primary', { 'aria-label': 'Results for ' + p.title }),
-          btn('Edit', function () { startEdit(p.pollId); }, 'secondary', { 'aria-label': 'Edit ' + p.title }),
-          btn('Copy link', function () { copyLinkFromHome(p); }, 'secondary', { 'aria-label': 'Copy link for ' + p.title }),
-          btn('Delete', function () { confirmDelete(p); }, 'secondary', { 'aria-label': 'Delete ' + p.title })
+    var count = state.polls.length;
+    var cards = state.polls.map(function (p) {
+      return h('li', { class: 'poll-card' }, [
+        h('h3', { class: 'poll-title' }, p.title),
+        h('p', { class: 'poll-meta' }, 'Week of ' + L.formatWeekRange(p.weekStart) + ' · ' + p.lengthMin + ' minutes'),
+        h('p', null, p.respondedCount + ' of ' + p.invitedCount + ' responded'),
+        h('div', { class: 'card-links' }, [
+          btn('Results', function () { openResults(p.pollId); }, 'link', { 'aria-label': 'Results for ' + p.title }),
+          btn('Edit', function () { startEdit(p.pollId); }, 'link', { 'aria-label': 'Edit ' + p.title }),
+          btn('Copy link', function () { copyLinkFromHome(p); }, 'link', { 'aria-label': 'Copy link for ' + p.title }),
+          btn('Delete', function () { confirmDelete(p); }, 'link', { 'aria-label': 'Delete ' + p.title })
         ])
       ]);
     });
     return h('section', null, [
-      h('div', { class: 'toolbar toolbar-top' }, [h('h1', null, 'My polls'), btn('New poll', startNew, 'primary', { 'data-key': 'new-poll' })]),
+      Dom.pageHeader({
+        title: 'My polls',
+        subtitle: 'Propose meeting times, share one link per poll, and see who can attend.',
+        actions: [btn('New poll', startNew, 'primary', { 'data-key': 'new-poll' })]
+      }),
       messageEl(),
-      rows.length
-        ? h('ul', { class: 'poll-list' }, rows)
-        : h('p', { class: 'note' }, 'No polls yet. Click “New poll” to propose meeting times.')
+      count
+        ? [Dom.sectionHeading('Polls', count === 1 ? '1 poll' : count + ' polls'), h('ul', { class: 'card-grid' }, cards)]
+        : Dom.spotlight({ body: h('p', null, 'No polls yet. Click “New poll” to propose meeting times.') })
     ]);
   }
 
@@ -303,7 +306,10 @@
       }, n + '. ' + label));
     }));
     return h('section', null, [
-      h('h1', null, state.draft.pollId ? 'Edit poll' : 'New poll'),
+      Dom.pageHeader({
+        title: state.draft.pollId ? 'Edit poll' : 'New poll',
+        subtitle: 'Step ' + state.step + ' of ' + STEPS.length + ': ' + STEPS[state.step - 1]
+      }),
       steps,
       messageEl(),
       bodies[state.step - 1]()
@@ -325,47 +331,49 @@
     }
     showWeek();
     return h('div', null, [
-      h('div', { class: 'field' }, [
-        h('label', { for: 'f-title' }, 'Title'),
-        h('input', {
-          type: 'text', id: 'f-title', value: d.title, maxlength: String(L.TITLE_MAX),
-          placeholder: 'e.g., P&T Committee: Fall review',
-          oninput: function (e) { d.title = e.target.value; changed(); }
-        })
-      ]),
-      h('div', { class: 'field' }, [
-        h('label', { for: 'f-week' }, 'Week'),
-        h('p', { class: 'note' }, 'Pick any day. The poll uses that Monday–Friday.'),
-        h('input', {
-          type: 'date', id: 'f-week', value: d.weekStart,
-          onchange: function (e) {
-            if (!e.target.value) {
-              d.weekStart = '';
+      h('div', { class: 'field-row' }, [
+        h('div', { class: 'field field-wide' }, [
+          h('label', { for: 'f-title' }, 'Title'),
+          h('input', {
+            type: 'text', id: 'f-title', value: d.title, maxlength: String(L.TITLE_MAX),
+            placeholder: 'e.g., P&T Committee: Fall review',
+            oninput: function (e) { d.title = e.target.value; changed(); }
+          })
+        ]),
+        h('div', { class: 'field' }, [
+          h('label', { for: 'f-week' }, 'Week'),
+          h('input', {
+            type: 'date', id: 'f-week', value: d.weekStart,
+            onchange: function (e) {
+              if (!e.target.value) {
+                d.weekStart = '';
+                changed();
+                showWeek();
+                return;
+              }
+              var monday = L.weekStartFor(e.target.value);
+              if (!monday) return;
+              d.weekStart = monday;
+              e.target.value = monday;
               changed();
               showWeek();
-              return;
             }
-            var monday = L.weekStartFor(e.target.value);
-            if (!monday) return;
-            d.weekStart = monday;
-            e.target.value = monday;
-            changed();
-            showWeek();
-          }
-        }),
-        weekInfo
-      ]),
-      h('fieldset', { class: 'field' }, [
-        h('legend', null, 'Meeting length'),
-        h('div', { class: 'radio-row' }, L.LENGTHS.map(function (len) {
-          return h('label', null, [
-            h('input', {
-              type: 'radio', name: 'f-length', value: String(len), checked: d.lengthMin === len,
-              'data-key': 'len-' + len, onchange: function () { changeLength(len); }
-            }),
-            ' ' + len + ' minutes'
-          ]);
-        }))
+          }),
+          h('p', { class: 'note' }, 'Pick any day. The poll uses that Monday–Friday.'),
+          weekInfo
+        ]),
+        h('fieldset', { class: 'field' }, [
+          h('legend', null, 'Meeting length'),
+          h('div', { class: 'radio-row' }, L.LENGTHS.map(function (len) {
+            return h('label', null, [
+              h('input', {
+                type: 'radio', name: 'f-length', value: String(len), checked: d.lengthMin === len,
+                'data-key': 'len-' + len, onchange: function () { changeLength(len); }
+              }),
+              ' ' + len + ' minutes'
+            ]);
+          }))
+        ])
       ]),
       wizardFooter([
         btn('← Back to my polls', cancelWizard, null, { 'data-key': 'back' }),
@@ -462,25 +470,28 @@
       }
     });
     var list = d.invitees.map(function (p, i) { return state.renaming === i ? renameRow(p, i) : nameRow(p, i); });
+    var n = d.invitees.length;
     return h('div', null, [
-      h('div', { class: 'field' }, [
-        h('label', { for: 'f-paste' }, 'Paste a list of names'),
-        paste,
-        btn('Add names', function () { addNames(paste.value, 'paste'); })
+      h('div', { class: 'field-row' }, [
+        h('div', { class: 'field' }, [
+          h('label', { for: 'f-paste' }, 'Paste a list of names'),
+          paste,
+          btn('Add names', function () { addNames(paste.value, 'paste'); })
+        ]),
+        h('div', { class: 'field' }, [
+          h('label', { for: 'f-name' }, 'Or add one name'),
+          h('div', { class: 'inline-row' }, [single, btn('Add', function () { addNames(single.value, 'single'); })])
+        ])
       ]),
-      h('div', { class: 'field' }, [
-        h('label', { for: 'f-name' }, 'Or add one name'),
-        h('div', { class: 'inline-row' }, [single, btn('Add', function () { addNames(single.value, 'single'); })])
-      ]),
-      h('h2', null, 'Invitees (' + d.invitees.length + ')'),
+      Dom.sectionHeading('Invitees', n === 1 ? '1 person' : n + ' people'),
       list.length ? h('ul', { class: 'name-editor' }, list) : h('p', { class: 'note' }, 'No invitees yet.'),
-      h('h2', null, 'Preview'),
+      Dom.sectionHeading('Preview'),
       h('p', { class: 'note' }, weekLine(d.weekStart)),
       dayTabsIfNarrow(d.weekStart),
       previewGrid(),
       wizardFooter([
         btn('← Back', function () { goStep(2); }, null, { 'data-key': 'back' }),
-        btn('Next: Review →', function () { goStep(4); }, 'primary', { disabled: d.invitees.length === 0, 'data-key': 'next' })
+        btn('Next: Review →', function () { goStep(4); }, 'primary', { disabled: n === 0, 'data-key': 'next' })
       ])
     ]);
   }
@@ -597,14 +608,17 @@
     var busy = state.saving || state.checking; // locks navigation while the save is in flight
     var label = state.saving ? 'Saving…' : state.checking ? 'Checking…' : d.pollId ? 'Save changes' : 'Confirm & create link';
     return h('div', null, [
-      h('dl', { class: 'summary' }, rows.map(function (r) {
-        return [
-          h('dt', null, r[0]),
-          h('dd', null, [r[1] + ' ', btn('Edit', function () { goStep(r[2]); }, 'link', { disabled: busy, 'aria-label': 'Edit ' + r[0].toLowerCase() })])
-        ];
-      })),
+      Dom.spotlight({
+        label: 'Summary',
+        body: h('dl', { class: 'summary' }, rows.map(function (r) {
+          return [
+            h('dt', null, r[0]),
+            h('dd', null, [r[1] + ' ', btn('Edit', function () { goStep(r[2]); }, 'link', { disabled: busy, 'aria-label': 'Edit ' + r[0].toLowerCase() })])
+          ];
+        }))
+      }),
       errors.length ? h('div', { class: 'msg msg-error', role: 'alert' }, errors.join(' ')) : null,
-      h('h2', null, 'What invitees will see'),
+      Dom.sectionHeading('What invitees will see'),
       h('p', { class: 'note' }, weekLine(d.weekStart)),
       dayTabsIfNarrow(d.weekStart),
       previewGrid(),
@@ -707,17 +721,21 @@
       ? 'The link for “' + s.title + '” has not changed.'
       : 'Send this link to your invitees. Anyone with the link can mark their availability.';
     return h('section', null, [
-      h('h1', null, heading),
-      h('p', null, intro),
-      h('div', { class: 'link-row' }, [input, btn('Copy', function () {
-        Dom.copyText(input).then(function (ok) {
-          status.textContent = ok ? 'Link copied.' : 'Select the link and press ⌘C (Mac) or Ctrl+C (Windows) to copy it.';
-        });
-      }, 'primary')]),
-      status,
-      h('div', { class: 'toolbar' }, [
+      Dom.pageHeader({ title: heading, subtitle: intro }),
+      Dom.spotlight({
+        label: 'Poll link',
+        body: [
+          h('div', { class: 'link-row' }, [input, btn('Copy', function () {
+            Dom.copyText(input).then(function (ok) {
+              status.textContent = ok ? 'Link copied.' : 'Select the link and press ⌘C (Mac) or Ctrl+C (Windows) to copy it.';
+            });
+          }, 'primary')]),
+          status
+        ]
+      }),
+      h('div', { class: 'actions' }, [
         btn('← My polls', goHome),
-        btn('View results', function () { openResults(s.pollId); })
+        btn('View results', function () { openResults(s.pollId); }, 'link')
       ])
     ]);
   }
@@ -747,35 +765,44 @@
     var t = L.tally(b.blocks, b.invitees, b.responses);
     var total = b.invitees.length;
     var pending = b.invitees.filter(function (p) { return !p.respondedAt; });
+    var responded = (total - pending.length) + ' of ' + total + ' responded';
     var bestLabels = b.blocks
       .filter(function (x) { return t.best.indexOf(x.blockId) !== -1; })
       .map(function (x) { return L.blockLabel(x, poll.lengthMin); });
     return h('section', null, [
-      h('h1', null, poll.title),
-      h('p', { class: 'note' }, 'Week of ' + L.formatWeekRange(poll.weekStart) + ' · ' + poll.lengthMin +
-        '-minute meeting · All times Eastern (Bloomington)'),
-      h('p', null, (total - pending.length) + ' of ' + total + ' responded.'),
+      Dom.pageHeader({
+        title: poll.title,
+        subtitle: 'Week of ' + L.formatWeekRange(poll.weekStart) + ' · ' + poll.lengthMin +
+          '-minute meeting · All times Eastern (Bloomington)',
+        actions: [
+          btn('← My polls', goHome),
+          btn('Refresh', function () { openResults(poll.pollId); }, 'link'),
+          btn('Edit poll', function () { startEdit(poll.pollId); }, 'link'),
+          btn('Copy link', function () { openShare({ mode: 'link', pollId: poll.pollId, title: poll.title }); }, 'link')
+        ]
+      }),
       bestLabels.length
-        ? h('p', null, [h('strong', null, 'Most available: '), bestLabels.join('; ') + ' (' + t.max + ' of ' + total + ')'])
-        : h('p', { class: 'note' }, 'No one has ticked a time yet.'),
+        ? Dom.spotlight({
+            label: 'Most available',
+            headline: bestLabels.join('; '),
+            byline: t.max + ' of ' + total + ' can attend · ' + responded
+          })
+        : Dom.spotlight({
+            label: 'Most available',
+            byline: responded,
+            body: h('p', null, 'No one has ticked a time yet.')
+          }),
+      Dom.sectionHeading('All proposed times'),
       dayTabsIfNarrow(poll.weekStart),
       Grid.render({
         mode: 'names', weekStart: poll.weekStart, lengthMin: poll.lengthMin, blocks: b.blocks,
         dayFilter: currentDayFilter(), invitees: b.invitees, ticks: t.ticks, counts: t.counts, best: t.best,
         activeInviteeId: null, showCounts: true
       }),
-      h('h2', null, 'Not yet responded'),
+      Dom.sectionHeading('Not yet responded', pending.length ? String(pending.length) : null),
       pending.length
         ? h('ul', { class: 'plain-list' }, pending.map(function (p) { return h('li', null, p.name); }))
-        : h('p', null, 'Everyone has responded.'),
-      h('div', { class: 'toolbar' }, [
-        btn('← My polls', goHome),
-        h('div', { class: 'actions' }, [
-          btn('Refresh', function () { openResults(poll.pollId); }),
-          btn('Edit poll', function () { startEdit(poll.pollId); }),
-          btn('Copy link', function () { openShare({ mode: 'link', pollId: poll.pollId, title: poll.title }); })
-        ])
-      ])
+        : h('p', null, 'Everyone has responded.')
     ]);
   }
 
@@ -783,15 +810,17 @@
 
   function renderSheetMissing() {
     return h('section', null, [
-      h('h1', null, 'The data sheet is missing'),
-      h('p', null, 'The Google Sheet that stores your polls can’t be opened right now. This can be a temporary ' +
-        'Google problem, so try again first. If the sheet was deleted, you can start a new, empty one.'),
-      messageEl(),
-      h('div', { class: 'actions' }, [
-        btn('Try again', goHome, 'primary', { 'data-key': 'retry' }),
-        btn(state.creatingSheet ? 'Creating…' : 'Create a new data sheet', confirmCreateSheet, 'secondary',
-          { 'data-key': 'create-sheet', disabled: state.creatingSheet })
-      ])
+      Dom.pageHeader({
+        title: 'The data sheet is missing',
+        subtitle: 'The Google Sheet that stores your polls can’t be opened right now. This can be a temporary ' +
+          'Google problem, so try again first. If the sheet was deleted, you can start a new, empty one.',
+        actions: [
+          btn('Try again', goHome, 'primary', { 'data-key': 'retry' }),
+          btn(state.creatingSheet ? 'Creating…' : 'Create a new data sheet', confirmCreateSheet, 'secondary',
+            { 'data-key': 'create-sheet', disabled: state.creatingSheet })
+        ]
+      }),
+      messageEl()
     ]);
   }
 
