@@ -39,6 +39,38 @@ var Dom = (function () {
     ]);
   }
 
+  var PAGE_LABEL = 'Kelley Marketing · Meeting Scheduler';
+
+  // Portal-style page header: red caps label, serif title, optional subtitle, extra lines and actions.
+  // The crimson rule under it is the header's bottom border.
+  function pageHeader(opts) {
+    return h('header', { class: 'page-header' }, [
+      h('p', { class: 'eyebrow' }, PAGE_LABEL),
+      h('h1', null, opts.title),
+      opts.subtitle ? h('p', { class: 'page-subtitle' }, opts.subtitle) : null,
+      opts.lines || null,
+      opts.actions && opts.actions.length ? h('div', { class: 'page-actions' }, opts.actions) : null
+    ]);
+  }
+
+  // Serif section heading with an optional small count, underlined like the portal's "Research · 5 stories".
+  function sectionHeading(text, count) {
+    return h('div', { class: 'section-head' }, [
+      h('h2', null, text),
+      count ? h('span', { class: 'section-count' }, count) : null
+    ]);
+  }
+
+  // Sand panel with a crimson left bar, like the portal's "In the spotlight" box.
+  function spotlight(opts) {
+    return h('div', { class: 'spotlight' }, [
+      opts.label ? h('p', { class: 'eyebrow' }, opts.label) : null,
+      opts.headline ? h('p', { class: 'spotlight-headline' }, opts.headline) : null,
+      opts.byline ? h('p', { class: 'spotlight-byline' }, opts.byline) : null,
+      opts.body || null
+    ]);
+  }
+
   function clear(el) {
     while (el.firstChild) el.removeChild(el.firstChild);
     return el;
@@ -137,6 +169,9 @@ var Dom = (function () {
     h: h,
     btn: btn,
     messageBox: messageBox,
+    pageHeader: pageHeader,
+    sectionHeading: sectionHeading,
+    spotlight: spotlight,
     clear: clear,
     focusByKey: focusByKey,
     announce: announce,

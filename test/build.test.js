@@ -33,6 +33,11 @@ test('styles and client scripts are wrapped as HTML includes', () => {
 
 test('page templates are copied unchanged into dist', () => {
   assert.equal(dist('message.html'), fs.readFileSync(path.join(ROOT, 'src', 'client', 'message.html'), 'utf8'));
+  for (const page of ['organizer.html', 'invitee.html', 'message.html']) {
+    assert.match(dist(page), /<header class="app-bar">/, page);
+    assert.match(dist(page), /<span class="app-name">Meeting Scheduler<\/span>/, page);
+  }
+  assert.match(dist('message.html'), /<header class="page-header">/);
 });
 
 test('preview pages have every scriptlet resolved', () => {

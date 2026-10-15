@@ -5,7 +5,12 @@
   <?!= include('styles') ?>
 </head>
 <body>
-  <header class="topbar"><div class="topbar-inner">Meeting Scheduler</div></header>
+  <header class="app-bar">
+    <div class="app-bar-inner">
+      <span class="app-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M3 10h18M8 3v4M16 3v4"></path></svg></span>
+      <span class="app-name">Meeting Scheduler</span>
+    </div>
+  </header>
   <main id="app" class="container"></main>
   <div id="dialog-root"></div>
   <div id="live" class="offscreen" role="status" aria-live="polite"></div>
